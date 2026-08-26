@@ -1,0 +1,9 @@
+{
+  "name": "sourceit",
+  "private": true,
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.0.0"
+}
