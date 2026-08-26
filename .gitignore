@@ -9,3 +9,8 @@ build/
 .vscode/
 .idea/
 coverage/
+CLAUDE.md
+sourceit-backend-prompt.md
+docs/DOMAIN.md
+docs/SCREENS.md
+docs/OPEN_QUESTIONS.md
