@@ -1,0 +1,3726 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SourceIt API",
+    "version": "0.1.0",
+    "description": "Generated from packages/shared/src/zod — not hand-written. See docs/PROJECT_STATE.md for what is and isn't implemented yet."
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Account": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "reader",
+              "publisher",
+              "reviewer",
+              "admin"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "fullName",
+          "role",
+          "createdAt"
+        ]
+      },
+      "MeResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/Account"
+          },
+          "publisherIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            }
+          },
+          "reviewerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          }
+        },
+        "required": [
+          "account",
+          "publisherIds",
+          "reviewerId"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "Publisher": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string"
+          },
+          "categories": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "verificationStatus": {
+            "type": "string",
+            "enum": [
+              "unverified",
+              "pending",
+              "verified",
+              "rejected"
+            ]
+          },
+          "transparencyLevel": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "credibilityScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "organizationName",
+          "displayName",
+          "website",
+          "description",
+          "categories",
+          "verificationStatus",
+          "transparencyLevel",
+          "credibilityScore",
+          "createdAt"
+        ]
+      },
+      "CreatePublisherRequest": {
+        "type": "object",
+        "properties": {
+          "organizationName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "website": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "organizationName",
+          "website",
+          "description"
+        ]
+      },
+      "PublisherAnalytics": {
+        "type": "object",
+        "properties": {
+          "totalArticlesPublished": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "verifiedArticleCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pendingReviewCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "disputedArticleCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "totalArticlesPublished",
+          "verifiedArticleCount",
+          "pendingReviewCount",
+          "disputedArticleCount"
+        ]
+      },
+      "ActivityEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "publish",
+              "blockchain",
+              "review",
+              "update",
+              "correction",
+              "dispute_filed",
+              "redaction"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "articleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "articleId",
+          "createdAt"
+        ]
+      },
+      "ArticleVersionSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "versionLabel": {
+            "type": "string"
+          },
+          "headline": {
+            "type": "string"
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "pending_review",
+              "verified"
+            ]
+          },
+          "anchorStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "anchored",
+              "anchor_failed"
+            ]
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "versionLabel",
+          "headline",
+          "reviewStatus",
+          "anchorStatus",
+          "publishedAt"
+        ]
+      },
+      "ReviewerPublic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "title"
+        ]
+      },
+      "Review": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "articleVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "reviewer": {
+            "$ref": "#/components/schemas/ReviewerPublic"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "confirmation",
+              "clarification",
+              "correction_note"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "isRetracted": {
+            "type": "boolean"
+          },
+          "retractedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "articleVersionId",
+          "reviewer",
+          "type",
+          "comment",
+          "isRetracted",
+          "retractedReason",
+          "createdAt"
+        ]
+      },
+      "DisputeEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "publisher_responded",
+              "withdrawn",
+              "resolved_corrected",
+              "resolved_addressed_no_verdict"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correctionVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "eventType",
+          "note",
+          "correctionVersionId",
+          "createdAt"
+        ]
+      },
+      "Dispute": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "articleVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "filedBy": {
+            "$ref": "#/components/schemas/ReviewerPublic"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "publisher_responded",
+              "withdrawn",
+              "resolved_corrected",
+              "resolved_addressed_no_verdict"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DisputeEvent"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "articleVersionId",
+          "filedBy",
+          "reason",
+          "status",
+          "events",
+          "createdAt"
+        ]
+      },
+      "CredibilityBreakdown": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "tier": {
+            "type": "string"
+          },
+          "trend": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "factors": {
+            "type": "object",
+            "properties": {
+              "verifiedArticles": {
+                "type": "integer"
+              },
+              "disputedClaims": {
+                "type": "integer"
+              },
+              "transparentCorrections": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "verifiedArticles",
+              "disputedClaims",
+              "transparentCorrections"
+            ]
+          }
+        },
+        "required": [
+          "score",
+          "tier",
+          "trend",
+          "factors"
+        ]
+      },
+      "CredibilityHistoryPoint": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "score",
+          "recordedAt"
+        ]
+      },
+      "VerifyPublisherRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "rejected"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "Reviewer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "affiliation": {
+            "type": "string"
+          },
+          "expertise": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pseudonym": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "useLegalName": {
+            "type": "boolean"
+          },
+          "approvalStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "affiliation",
+          "expertise",
+          "title",
+          "pseudonym",
+          "useLegalName",
+          "approvalStatus",
+          "createdAt"
+        ]
+      },
+      "ApplyAsReviewerRequest": {
+        "type": "object",
+        "properties": {
+          "affiliation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expertise": {
+            "type": "string",
+            "minLength": 1
+          },
+          "applicationReason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "affiliation",
+          "expertise",
+          "applicationReason"
+        ]
+      },
+      "ReviewerDecisionRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "Article": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "publisherId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "politics",
+              "technology",
+              "health",
+              "science",
+              "business"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "publisherId",
+          "category",
+          "createdAt"
+        ]
+      },
+      "CreateArticleRequest": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "politics",
+              "technology",
+              "health",
+              "science",
+              "business"
+            ]
+          },
+          "headline": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "authorName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sourceLinks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "submit": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "category",
+          "headline",
+          "summary",
+          "content",
+          "authorName"
+        ]
+      },
+      "ArticleVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "articleId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "versionMajor": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "versionMinor": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "versionLabel": {
+            "type": "string",
+            "example": "v1.0"
+          },
+          "headline": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "sourceLinks": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "changeType": {
+            "type": "string",
+            "enum": [
+              "original_published",
+              "major_update",
+              "minor_correction"
+            ]
+          },
+          "changeSummary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "pending_review",
+              "verified"
+            ]
+          },
+          "previousVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "contentHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previousHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "articleId",
+          "versionMajor",
+          "versionMinor",
+          "versionLabel",
+          "headline",
+          "summary",
+          "content",
+          "authorName",
+          "tags",
+          "sourceLinks",
+          "changeType",
+          "changeSummary",
+          "reviewStatus",
+          "previousVersionId",
+          "contentHash",
+          "previousHash",
+          "createdAt",
+          "publishedAt"
+        ]
+      },
+      "CreateArticleVersionRequest": {
+        "type": "object",
+        "properties": {
+          "headline": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "authorName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sourceLinks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "changeType": {
+            "type": "string",
+            "enum": [
+              "original_published",
+              "major_update",
+              "minor_correction"
+            ]
+          },
+          "changeSummary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "submit": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "headline",
+          "summary",
+          "content",
+          "authorName",
+          "changeType"
+        ]
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "articleVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "fileType": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video",
+              "document"
+            ]
+          },
+          "tag": {
+            "type": "string",
+            "enum": [
+              "cover_image",
+              "media",
+              "evidence",
+              "source"
+            ]
+          },
+          "filename": {
+            "type": "string"
+          },
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "isArchivedSnapshot": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "articleVersionId",
+          "fileType",
+          "tag",
+          "filename",
+          "caption",
+          "contentHash",
+          "sourceUrl",
+          "isArchivedSnapshot",
+          "createdAt"
+        ]
+      },
+      "AnchorRecord": {
+        "type": "object",
+        "properties": {
+          "articleVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "anchored",
+              "anchor_failed"
+            ]
+          },
+          "leafHash": {
+            "type": "string"
+          },
+          "merkleProof": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "blockHeight": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "chainConfirmations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "anchoredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "articleVersionId",
+          "status",
+          "leafHash",
+          "merkleProof",
+          "blockHeight",
+          "chainConfirmations",
+          "anchoredAt"
+        ]
+      },
+      "Redaction": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "articleVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "court_order",
+              "defamation_ruling",
+              "right_to_erasure"
+            ]
+          },
+          "tombstoneHash": {
+            "type": "string"
+          },
+          "redactedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "articleVersionId",
+          "category",
+          "tombstoneHash",
+          "redactedAt"
+        ]
+      },
+      "TrustSummaryFacts": {
+        "type": "object",
+        "properties": {
+          "registryMember": {
+            "type": "boolean"
+          },
+          "versionMatch": {
+            "type": "boolean"
+          },
+          "publisherVerified": {
+            "type": "boolean"
+          },
+          "evidenceCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "openDisputeCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "registryMember",
+          "versionMatch",
+          "publisherVerified",
+          "evidenceCount",
+          "openDisputeCount"
+        ]
+      },
+      "VerificationResult": {
+        "type": "object",
+        "properties": {
+          "article": {
+            "$ref": "#/components/schemas/Article"
+          },
+          "currentVersion": {
+            "$ref": "#/components/schemas/ArticleVersion"
+          },
+          "versionHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArticleVersion"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Review"
+            }
+          },
+          "publisher": {
+            "$ref": "#/components/schemas/Publisher"
+          },
+          "anchorRecord": {
+            "$ref": "#/components/schemas/AnchorRecord"
+          },
+          "redaction": {
+            "$ref": "#/components/schemas/Redaction"
+          },
+          "trustStatus": {
+            "type": "string",
+            "enum": [
+              "authentic",
+              "authentic_under_review",
+              "updated",
+              "disputed",
+              "publisher_unverified",
+              "notfound"
+            ]
+          },
+          "trustSummary": {
+            "$ref": "#/components/schemas/TrustSummaryFacts"
+          }
+        },
+        "required": [
+          "article",
+          "currentVersion",
+          "versionHistory",
+          "evidence",
+          "reviews",
+          "publisher",
+          "anchorRecord",
+          "redaction",
+          "trustStatus",
+          "trustSummary"
+        ]
+      },
+      "NotFoundVerificationResult": {
+        "type": "object",
+        "properties": {
+          "trustStatus": {
+            "type": "string",
+            "enum": [
+              "notfound"
+            ]
+          },
+          "queriedId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          }
+        },
+        "required": [
+          "trustStatus"
+        ]
+      },
+      "UploadEvidenceRequest": {
+        "type": "object",
+        "properties": {
+          "fileType": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video",
+              "document"
+            ]
+          },
+          "tag": {
+            "type": "string",
+            "enum": [
+              "cover_image",
+              "media",
+              "evidence",
+              "source"
+            ]
+          },
+          "filename": {
+            "type": "string",
+            "minLength": 1
+          },
+          "caption": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "fileType",
+          "tag",
+          "filename"
+        ]
+      },
+      "CreateReviewRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "confirmation",
+              "clarification",
+              "correction_note"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "type",
+          "comment"
+        ]
+      },
+      "RetractReviewRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FileDisputeRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "RespondToDisputeRequest": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "minLength": 1
+          },
+          "correctionVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          }
+        }
+      },
+      "ResolveDisputeRequest": {
+        "type": "object",
+        "properties": {
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "withdrawn",
+              "resolved_corrected",
+              "resolved_addressed_no_verdict"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType"
+        ]
+      },
+      "CreateRedactionRequest": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "court_order",
+              "defamation_ruling",
+              "right_to_erasure"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "category",
+          "reason"
+        ]
+      },
+      "SavedArticle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "articleId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisherName": {
+            "type": "string"
+          },
+          "trustStatus": {
+            "type": "string",
+            "enum": [
+              "authentic",
+              "authentic_under_review",
+              "updated",
+              "disputed",
+              "publisher_unverified",
+              "notfound"
+            ]
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "articleId",
+          "title",
+          "publisherName",
+          "trustStatus",
+          "savedAt"
+        ]
+      },
+      "CreateSavedArticleRequest": {
+        "type": "object",
+        "properties": {
+          "articleId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          }
+        },
+        "required": [
+          "articleId"
+        ]
+      },
+      "PublisherFollow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "publisherId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "publisherName": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "credibilityScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "publisherId",
+          "publisherName",
+          "verified",
+          "credibilityScore",
+          "createdAt"
+        ]
+      },
+      "CreatePublisherFollowRequest": {
+        "type": "object",
+        "properties": {
+          "publisherId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          }
+        },
+        "required": [
+          "publisherId"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/me": {
+      "get": {
+        "tags": [
+          "Session"
+        ],
+        "summary": "The current authenticated account and its role-specific profile ids",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers": {
+      "post": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "Register a publisher organization (RegisterForm.tsx role=publisher)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePublisherRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created, verificationStatus=unverified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Publisher"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}": {
+      "get": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "Public publisher profile (PublisherProfileCard.tsx)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Publisher"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}/analytics": {
+      "get": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "Aggregate counts for the publisher dashboard (AnalyticsCards.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublisherAnalytics"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member of this publisher",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}/activity": {
+      "get": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "Recent activity feed (RecentActivity.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ActivityEvent"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}/articles": {
+      "get": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "This publisher's articles, current version only (MyArticlesTable.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ArticleVersionSummary"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}/reviews": {
+      "get": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "Reviews and disputes against this publisher's articles (ReviewsDisputes.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Review"
+                          },
+                          {
+                            "$ref": "#/components/schemas/Dispute"
+                          }
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}/credibility": {
+      "get": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "Published credibility breakdown (CredibilityPanel.tsx)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredibilityBreakdown"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}/credibility-history": {
+      "get": {
+        "tags": [
+          "Publishers"
+        ],
+        "summary": "Credibility score trend (CredibilityPanel.tsx:84 sparkline)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CredibilityHistoryPoint"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/pending-verification": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Publisher verification queue (resolves OPEN_QUESTIONS.md #8)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK, admin only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Publisher"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publishers/{publisherId}/verification": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Approve or reject a publisher's verification (resolves OPEN_QUESTIONS.md #6a, #8)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "publisherId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPublisherRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Publisher"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviewers/apply": {
+      "post": {
+        "tags": [
+          "Reviewers"
+        ],
+        "summary": "Apply to become a reviewer (RegisterForm.tsx role=reviewer)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyAsReviewerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created, approvalStatus=pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reviewer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviewers/pending": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Reviewer approval queue (resolves OPEN_QUESTIONS.md #8)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK, admin only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Reviewer"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviewers/{reviewerId}/decision": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Approve or reject a reviewer application",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "reviewerId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewerDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reviewer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles": {
+      "post": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Create an article and its v1.0 version (PublishArticlePanel.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArticleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member of the target publisher, or publisher not verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{articleId}": {
+      "get": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Article + its current version (public, unauthenticated)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{articleId}/versions": {
+      "get": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Full version history — public and unauthenticated like verification itself (resolves OPEN_QUESTIONS.md #12)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ArticleVersion"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Submit a correction/update as a new version",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArticleVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleVersion"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member of the owning publisher",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{articleId}/versions/{versionId}": {
+      "get": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "One version's full detail, for diffing against another (ArticleEditHistory.tsx)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleVersion"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or redacted (see GET /versions/{versionId}/redaction)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Edit a draft version's content — draft only; append-only once submitted (resolves OPEN_QUESTIONS.md #9)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArticleVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleVersion"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version is no longer a draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Hard-delete a draft version — draft only (resolves OPEN_QUESTIONS.md #9)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "409": {
+            "description": "Version is no longer a draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{articleId}/archive": {
+      "post": {
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Archive an article at any lifecycle stage (resolves OPEN_QUESTIONS.md #9)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{articleId}/verification": {
+      "get": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "The core verification endpoint — public, unauthenticated, must never be slow or down (build prompt, Scale)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not registered — trustStatus is always 'notfound' here, never absent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundVerificationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/versions/{versionId}/evidence": {
+      "get": {
+        "tags": [
+          "Evidence"
+        ],
+        "summary": "Evidence attached to this version (EvidenceSection.tsx)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Evidence"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Evidence"
+        ],
+        "summary": "Attach evidence to a draft version (MediaEvidenceUpload.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadEvidenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version is no longer a draft — evidence binds at submission and is then append-only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/versions/{versionId}/reviews": {
+      "get": {
+        "tags": [
+          "Reviews"
+        ],
+        "summary": "Reviews attached to this version (ReviewerNotes.tsx)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Review"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Reviews"
+        ],
+        "summary": "Attach a review — 403 if the reviewer is structurally affiliated with the publisher (resolves OPEN_QUESTIONS.md #4)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Reviewer is affiliated with this publisher, or not an approved reviewer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviews/{reviewId}/retract": {
+      "post": {
+        "tags": [
+          "Reviews"
+        ],
+        "summary": "Retract own review — original text stays visible and intact (build prompt invariant)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "reviewId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetractReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the reviewer who wrote it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/versions/{versionId}/disputes": {
+      "get": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "Disputes filed against this version — always visible, never suppressible (build prompt invariant)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Dispute"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "File a dispute (resolves OPEN_QUESTIONS.md #2)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDisputeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dispute"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Reviewer is affiliated with this publisher, or not an approved reviewer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/disputes/{disputeId}": {
+      "get": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "One dispute with its full event history",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "disputeId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dispute"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/disputes/{disputeId}/respond": {
+      "post": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "Publisher response: free text, a correction (new ArticleVersion), or both — never deletion or suppression (resolves OPEN_QUESTIONS.md #2)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "disputeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RespondToDisputeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Event appended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dispute"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member of the disputed publisher",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/disputes/{disputeId}/resolve": {
+      "post": {
+        "tags": [
+          "Disputes"
+        ],
+        "summary": "Filer withdraws, or filer/admin marks resolved — never the publisher; SourceIt does not adjudicate truth, so this is procedural, not a verdict (build prompt invariant)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "disputeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDisputeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Event appended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dispute"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the filer and not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/versions/{versionId}/redaction": {
+      "get": {
+        "tags": [
+          "Redactions"
+        ],
+        "summary": "The tombstone for this version, if redacted — public (resolves OPEN_QUESTIONS.md #5)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Redacted — tombstone follows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Redaction"
+                    },
+                    {
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not redacted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Redactions"
+        ],
+        "summary": "Redact a version under legal takedown — admin only, redaction not deletion (build prompt invariant)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRedactionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Redaction"
+                    },
+                    {
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/versions/{versionId}/anchor": {
+      "get": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "The anchor state for this version — always present, always one of pending/anchored/anchor_failed (resolves OPEN_QUESTIONS.md #1)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorRecord"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Version does not exist or is still a draft (no anchor record yet)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/saved-articles": {
+      "get": {
+        "tags": [
+          "Reader"
+        ],
+        "summary": "The current reader's saved articles (SavedArticles.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SavedArticle"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Reader"
+        ],
+        "summary": "Bookmark an article",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSavedArticleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedArticle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/saved-articles/{savedArticleId}": {
+      "delete": {
+        "tags": [
+          "Reader"
+        ],
+        "summary": "Unbookmark — never affects the underlying article",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "savedArticleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Not the owning reader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publisher-follows": {
+      "get": {
+        "tags": [
+          "Reader"
+        ],
+        "summary": "The current reader's followed publishers (TrustedPublishers.tsx)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PublisherFollow"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Reader"
+        ],
+        "summary": "Follow a publisher",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePublisherFollowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublisherFollow"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/publisher-follows/{followId}": {
+      "delete": {
+        "tags": [
+          "Reader"
+        ],
+        "summary": "Unfollow a publisher",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "followId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Not the owning reader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}
