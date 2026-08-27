@@ -2,5 +2,9 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
+  '@clerk/shared': true
   '@tailwindcss/oxide': true
+  cpu-features: true
   esbuild: true
+  protobufjs: true
+  ssh2: true
