@@ -1,16 +1,16 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 1  ·  **Current phase:** Phase 1 (Contract) complete and confirmed — ready for Phase 2 (Skeleton)
+**Last updated:** end of Sprint 2  ·  **Current phase:** Phase 2 (Skeleton) complete with carryover — Docker-dependent verification still owed before Phase 3
 
 ## Resume here
 
-The full backend contract exists: 18-table Postgres schema (`packages/shared/migrations`),
-Zod request/response schemas, and a generated `packages/shared/openapi.json` (33
-endpoints). No handler, service, or repository code exists anywhere — `apps/api`
-has not been created. Before Sprint 2 (Skeleton) starts, read
-[SPRINT_1_REPORT.md](sprints/SPRINT_1_REPORT.md) Section 8 in full: the schema and
-`openapi.json` have never been run against a live Postgres in this environment, and
-that verification (`docker compose up`, apply both migrations, run the seed
-script) should be Sprint 2's first action, before any new code is written.
+`apps/api` now runs: `GET /me` is fully implemented and was verified live
+(server started, hit with `curl`) for every case except an actual database
+round-trip and an actual Clerk session — neither was possible in this
+environment (no Docker, no live Clerk project). Before Sprint 3 (the first
+feature slice) starts, read [SPRINT_2_REPORT.md](sprints/SPRINT_2_REPORT.md)
+Section 8: `pnpm test` (Testcontainers-based, needs Docker) has never actually
+run, and neither has CI. Run both — or push and watch CI run them — before
+trusting the repository layer or the auth flow.
 
 ## Sprint ledger
 
@@ -18,6 +18,7 @@ script) should be Sprint 2's first action, before any new code is written.
 |---|---|---|---|
 | 0 | Read the frontend; produce domain model, screen map, open questions, stack proposal | Complete with carryover | [SPRINT_0_REPORT.md](sprints/SPRINT_0_REPORT.md) |
 | 1 | Full DB schema, Zod contracts, generated openapi.json, seed script | Complete with carryover | [SPRINT_1_REPORT.md](sprints/SPRINT_1_REPORT.md) |
+| 2 | apps/api skeleton: auth, error handling, logging, config, health, Docker Compose, CI, GET /me | Complete with carryover | [SPRINT_2_REPORT.md](sprints/SPRINT_2_REPORT.md) |
 
 ## Current domain model
 
@@ -64,12 +65,13 @@ publisher_unverified, notfound) is **not a table** — computed at read time by
 
 ## Implemented endpoints
 
-None yet. `packages/shared/openapi.json` defines the full contract (33 endpoints);
-this table starts being populated in Sprint 2 with `GET /me`, and must always match
-`openapi.json` once code exists — if it doesn't, that's a bug in the code, not the doc.
+`packages/shared/openapi.json` defines the full contract (33 endpoints); 1 of them
+is implemented so far. `GET /healthz` and `GET /readyz` also exist but are
+intentionally not in `openapi.json` — ops endpoints, not product API surface.
 
 | Method | Path | Auth | Sprint introduced |
 |---|---|---|---|
+| GET | /me | Clerk bearer token | 2 |
 
 ## Decisions
 
@@ -171,54 +173,74 @@ this table starts being populated in Sprint 2 with `GET /me`, and must always ma
 - 2026-08-26 — Schema entity names (Article, ArticleVersion, Publisher, Reviewer,
   Dispute, DisputeEvent, Redaction, AnchorRecord, Evidence, etc.) confirmed at the
   Sprint 1 stop point as matching the business's own language — no renames.
+- 2026-08-26 — Session auth is a Clerk-issued JWT passed as an `Authorization:
+  Bearer <token>` header, verified server-side with `@clerk/backend`'s
+  `verifyToken`. Why: the concrete mechanism Sprint 1's `security: authed` tag
+  needed; Clerk's own recommended server-side verification path, no custom
+  session/cookie handling. Revisit: never without dropping Clerk itself.
+- 2026-08-26 — `apps/api`'s Fastify instance takes an injectable
+  `SessionVerifier` (`app.decorate("verifySession", ...)`); production always
+  uses real Clerk verification, but the integration test suite substitutes a
+  fixed token→clerkUserId mapping instead of requiring a live Clerk project to
+  run. The database is never substituted this way — Testcontainers Postgres,
+  real migrations, always. Why: a live Clerk project wasn't available this
+  sprint, and hand-rolling fake JWTs that pass real Clerk verification isn't
+  possible without Clerk's own signing keys; injecting at the verification
+  boundary was the option that still exercises everything else (routing,
+  errors, the database) for real. Revisit: add a second, smaller test suite
+  against a real Clerk test project once one exists, rather than trusting the
+  injected path alone forever.
 
 ## Open questions
 
-None outstanding. All 12 from Sprint 0 plus both stack proposals were resolved
-2026-08-26; the sprint's own new question (does one `admin` role approve both
-reviewers and publishers?) was confirmed "yes" the same day, at the Sprint 1 stop
-point, alongside confirming the schema's entity names need no renames.
+None outstanding.
 
 ## Known debt and deviations
 
-- **Migrations never run against a live database.** No Docker or local Postgres
-  was available in this Sprint 1 environment. `drizzle-kit generate` succeeded and
-  the SQL was reviewed, but neither migration has ever executed against real
-  Postgres. Repay: first action of Sprint 2, before writing `apps/api`.
-- **Seed script never run.** Same cause. Typechecks cleanly; behavior against a
-  real database (foreign key ordering, returned-row shapes) is unverified. Repay:
-  same as above.
-- **`packages/anchoring` does not exist.** The build prompt calls for hashing,
-  canonicalization, Merkle trees, and an `AnchorProvider` interface to live there,
-  usable standalone. Not part of Sprint 1's stated scope (Contract), but the
-  canonicalization spec needs to be frozen before Sprint 3's central-entity slice
-  can compute real `contentHash` values. Repay: Sprint 2 or the start of Sprint 3,
-  whichever needs it first.
-- **`/simple-login` and `/reader-portal` still exist in `apps/web`**, despite being
-  confirmed dead. Repay: Sprint 3+, when the frontend is wired to the real
-  generated client and mock data starts getting deleted anyway.
-- **Fixed but worth tracking:** `apps/web/package.json` had 54 malformed duplicate
-  dependency keys (Figma Make export artifact) that blocked `pnpm install`
-  entirely; removed. 41 files under `apps/web/src/app/components/ui/` had import
-  specifiers with an inline version pin (e.g. `from "sonner@2.0.3"`) that blocked
-  `vite build` entirely; stripped mechanically (67 total occurrences across both
-  passes). Neither touched any visual or behavioral code — see
-  SPRINT_1_REPORT.md Section 8 for the exact mechanism.
+- **Migrations still never run against a live database**, and now neither has
+  the integration test suite (Testcontainers) or CI — all three need Docker,
+  which has not been available in this environment across two sprints running.
+  `pnpm test` and a real `docker compose up` + apply-migrations pass are both
+  still owed. Repay: before Sprint 3 starts, per SPRINT_2_REPORT.md Section 8.
+- **Seed script never run.** Unchanged from Sprint 1 — same underlying cause.
+- **Auth flow never tested against a real Clerk project.** The injected
+  `SessionVerifier` (see Decisions above) means `requireAuth`'s wiring is
+  proven, but real `verifyToken` behavior against a real Clerk-issued JWT is
+  not. Repay: one manual smoke test against a live Clerk project once keys
+  exist, before relying on the auth flow for anything real.
+- **CI has never run.** The workflow file exists and was reviewed but nothing
+  has been pushed since it was added.
+- **`packages/anchoring` does not exist.** Unchanged from Sprint 1 — the
+  canonicalization spec still needs to be frozen before Sprint 3's central-entity
+  slice can compute real `contentHash` values.
+- **`/simple-login` and `/reader-portal` still exist in `apps/web`**, despite
+  being confirmed dead. Unchanged from Sprint 1 — still deferred to Sprint 3+.
+- **Fixed but worth tracking (Sprint 1):** `apps/web/package.json` had 54
+  malformed duplicate dependency keys (Figma Make export artifact) that blocked
+  `pnpm install`; removed. 41 files under `apps/web/src/app/components/ui/` had
+  version-pinned import specifiers that blocked `vite build`; stripped
+  mechanically. Neither touched visual or behavioral code — see
+  SPRINT_1_REPORT.md Section 8.
 
 ## How to run
 
-Not fully verified this sprint (see Known debt above). What is confirmed working:
+Confirmed working this sprint:
 
 ```
 pnpm install                                   # workspace install — verified
-cd packages/shared
-pnpm exec drizzle-kit generate                 # regenerate migrations — verified
-pnpm exec tsx src/openapi/generate.ts          # regenerate openapi.json — verified
-pnpm exec tsc --noEmit                         # typecheck — verified, 0 errors
-cd ../../apps/web
-pnpm exec vite build                           # frontend build — verified
+pnpm typecheck                                 # apps/api + packages/shared — verified, 0 errors
+pnpm lint                                      # apps/api + packages/shared — verified, 0 errors/warnings
+docker compose up                              # brings up local Postgres — compose file reviewed,
+                                                # not actually run (no Docker in this environment)
 ```
 
-Not yet possible: `docker compose up` (no compose file exists — Sprint 2
-deliverable), applying migrations to a real database, running the seed script
-against one, or running any backend at all (`apps/api` does not exist).
+`apps/api` was started directly (`pnpm exec tsx src/server.ts`, dummy env vars) and
+verified live: `GET /healthz` → 200, `GET /readyz` → 503 when the database is
+unreachable (confirms it actually checks), `GET /me` with no auth header → 401,
+an unknown route → 404 — all in the standard error envelope, all logged as
+structured JSON with a request id. Starting the server with required env vars
+unset crashes immediately with a Zod error naming exactly what's missing.
+
+Not yet possible here: `pnpm test` (Testcontainers needs Docker), applying
+migrations to a real Postgres, running the seed script, or exercising `GET /me`
+against a real Clerk session and a real database row at the same time.
