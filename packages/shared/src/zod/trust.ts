@@ -1,5 +1,5 @@
 import { z } from "./z";
-import { isoDatetimeSchema, uuidSchema } from "./common";
+import { uuidSchema } from "./common";
 import { trustStatusSchema } from "./enums";
 import { articleSchema, articleVersionSchema } from "./articles";
 import { anchorRecordSchema } from "./anchoring";
