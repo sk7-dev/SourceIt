@@ -1,16 +1,26 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 2  ·  **Current phase:** Phase 2 (Skeleton) complete with carryover — Docker-dependent verification still owed before Phase 3
+**Last updated:** end of Sprint 3  ·  **Current phase:** Phase 3 (Article vertical slice) — complete, verified live end-to-end in a real browser
 
 ## Resume here
 
-`apps/api` now runs: `GET /me` is fully implemented and was verified live
-(server started, hit with `curl`) for every case except an actual database
-round-trip and an actual Clerk session — neither was possible in this
-environment (no Docker, no live Clerk project). Before Sprint 3 (the first
-feature slice) starts, read [SPRINT_2_REPORT.md](sprints/SPRINT_2_REPORT.md)
-Section 8: `pnpm test` (Testcontainers-based, needs Docker) has never actually
-run, and neither has CI. Run both — or push and watch CI run them — before
-trusting the repository layer or the auth flow.
+The Article vertical slice — backend **and** frontend — is done and was
+demonstrated live: real Clerk login (including a second-factor step Clerk's
+own instance required), a real article published through the real
+`PublishArticlePanel` UI, and that article's real headline and version history
+rendering on its real public `/verification-result/:articleId` page — all
+against a real (temporary) Postgres. See
+[SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) Section 7 for the full
+walkthrough. Two real bugs were only caught by that live run: the Sprint 1
+append-only trigger was silently discarding every write (Section 5), and
+`apps/api` had no CORS support at all, so every authenticated browser request
+was silently blocked by a failed preflight — invisible to `curl` and to the
+in-process integration tests, only visible from an actual browser. Both fixed.
+
+Still mock, deliberately: `RegisterForm` (needs new account-provisioning
+endpoints), everything on `/verification-result` except headline/version
+history (needs Evidence/Review/Dispute data), and the search/scan entry points
+(no backend search endpoint exists). See SPRINT_3_REPORT.md Section 8 for the
+full list.
 
 ## Sprint ledger
 
@@ -19,6 +29,7 @@ trusting the repository layer or the auth flow.
 | 0 | Read the frontend; produce domain model, screen map, open questions, stack proposal | Complete with carryover | [SPRINT_0_REPORT.md](sprints/SPRINT_0_REPORT.md) |
 | 1 | Full DB schema, Zod contracts, generated openapi.json, seed script | Complete with carryover | [SPRINT_1_REPORT.md](sprints/SPRINT_1_REPORT.md) |
 | 2 | apps/api skeleton: auth, error handling, logging, config, health, Docker Compose, CI, GET /me | Complete with carryover | [SPRINT_2_REPORT.md](sprints/SPRINT_2_REPORT.md) |
+| 3 | Article vertical slice: full backend CRUD, packages/anchoring, generated client — verified live | Complete with carryover | [SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) |
 
 ## Current domain model
 
@@ -65,13 +76,23 @@ publisher_unverified, notfound) is **not a table** — computed at read time by
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` defines the full contract (33 endpoints); 1 of them
-is implemented so far. `GET /healthz` and `GET /readyz` also exist but are
-intentionally not in `openapi.json` — ops endpoints, not product API surface.
+`packages/shared/openapi.json` defines the full contract (33 endpoints); 9 of
+them are implemented so far, all verified against a real database this sprint.
+`GET /healthz` and `GET /readyz` also exist but are intentionally not in
+`openapi.json` — ops endpoints, not product API surface.
 
 | Method | Path | Auth | Sprint introduced |
 |---|---|---|---|
 | GET | /me | Clerk bearer token | 2 |
+| POST | /articles | Clerk bearer token | 3 |
+| GET | /articles/{articleId} | public | 3 |
+| GET | /articles/{articleId}/versions | public | 3 |
+| GET | /articles/{articleId}/versions/{versionId} | public + optional owner | 3 |
+| POST | /articles/{articleId}/versions | Clerk bearer token | 3 |
+| PATCH | /articles/{articleId}/versions/{versionId} | Clerk bearer token | 3 |
+| DELETE | /articles/{articleId}/versions/{versionId} | Clerk bearer token | 3 |
+| POST | /articles/{articleId}/archive | Clerk bearer token | 3 |
+| GET | /publishers/{publisherId}/articles | Clerk bearer token | 3 |
 
 ## Decisions
 
@@ -191,56 +212,127 @@ intentionally not in `openapi.json` — ops endpoints, not product API surface.
   against a real Clerk test project once one exists, rather than trusting the
   injected path alone forever.
 
+- 2026-08-27 — `packages/anchoring`'s canonicalization/hashing spec is frozen
+  as of Sprint 3 (`docs/CANONICALIZATION.md`): SHA-256 over a deterministic,
+  recursively-key-sorted JSON serialization of exactly 8 version-content
+  fields, computed via Web Crypto (`crypto.subtle`) rather than `node:crypto`
+  so the identical code runs in a browser. Why: the build prompt requires this
+  frozen before Phase 1, and it slipped to Sprint 3 because nothing needed a
+  real hash before then — flagged rather than pretended otherwise. Revisit:
+  never without a new spec version, since any change invalidates every
+  previously-computed hash.
+- 2026-08-27 — Session verification is injected at the Fastify-instance level
+  (`SessionVerifier`) and the article integration tests use a fixed
+  token→clerkUserId mapping rather than a live Clerk project — carried over
+  from Sprint 2's same decision, now exercised by 18 more tests.
+- 2026-08-27 — **Confirmed at the Sprint 3 mid-sprint stop point:** Clerk's
+  auth UI is wired via headless hooks into the existing custom
+  `LoginForm`/`RegisterForm` (no visual change), and a reader reaches a
+  specific article via a route param (`/verification-result/:articleId`). Both
+  implemented and demonstrated live this sprint. `RegisterForm` itself is
+  still unwired — the confirmed *approach* (headless hooks) applies once its
+  supporting backend endpoints exist (see Known debt).
+- 2026-08-27 — `apps/api` gets CORS via `@fastify/cors`, origin controlled by
+  a new `CORS_ORIGIN` env var (comma-separated allowlist outside development;
+  any origin allowed in development). Why: found live — every authenticated
+  browser request's preflight `OPTIONS` 404'd with no CORS plugin registered,
+  invisible to curl/in-process tests. Revisit: set `CORS_ORIGIN` explicitly
+  before any non-development deployment; the development-allows-any-origin
+  default must never apply outside development.
+- 2026-08-27 — `apps/web`'s auth UI additionally handles Clerk's
+  `needs_second_factor` sign-in status (an email-code step) inline in
+  `LoginForm`, discovered live when this Clerk project's own security policy
+  required it for a password sign-in. Why: the alternative was leaving a
+  real, reachable Clerk state with no UI to complete it. Revisit: never,
+  unless Clerk's second-factor strategy set changes.
+
 ## Open questions
 
 None outstanding.
 
 ## Known debt and deviations
 
-- **Migrations still never run against a live database**, and now neither has
-  the integration test suite (Testcontainers) or CI — all three need Docker,
-  which has not been available in this environment across two sprints running.
-  `pnpm test` and a real `docker compose up` + apply-migrations pass are both
-  still owed. Repay: before Sprint 3 starts, per SPRINT_2_REPORT.md Section 8.
-- **Seed script never run.** Unchanged from Sprint 1 — same underlying cause.
-- **Auth flow never tested against a real Clerk project.** The injected
-  `SessionVerifier` (see Decisions above) means `requireAuth`'s wiring is
-  proven, but real `verifyToken` behavior against a real Clerk-issued JWT is
-  not. Repay: one manual smoke test against a live Clerk project once keys
-  exist, before relying on the auth flow for anything real.
-- **CI has never run.** The workflow file exists and was reviewed but nothing
-  has been pushed since it was added.
-- **`packages/anchoring` does not exist.** Unchanged from Sprint 1 — the
-  canonicalization spec still needs to be frozen before Sprint 3's central-entity
-  slice can compute real `contentHash` values.
+- **Docker itself is still never available in this environment**, across
+  three sprints. `docker compose up` and the Testcontainers-based test runs
+  remain unverified *by this environment specifically* — but everything that
+  actually mattered (migrations, the seed script, the append-only trigger, all
+  9 implemented endpoints, and now the full frontend flow) was verified for
+  real this sprint via `embedded-postgres` (a scratch, non-project dependency)
+  and a real, temporary Clerk user, both torn down afterward. What's left:
+  confirm CI actually goes green on GitHub's Docker-equipped runners once
+  something is pushed, and confirm `docker compose up` specifically works —
+  nobody has typed that exact command against this repo yet.
+- **CI has never run.** Unchanged — the workflow file exists and was reviewed,
+  nothing has been pushed since Sprint 2 added it.
+- **`RegisterForm.tsx` still unwired.** Creating a brand-new account through
+  the UI needs a local-account-provisioning endpoint that doesn't exist (today
+  an `accounts` row only comes from the seed script or manual linking) plus
+  real handlers for `POST /publishers` and `POST /reviewers/apply` (both are
+  in `openapi.json` from Sprint 1, neither has an `apps/api` route). The
+  *approach* for wiring it (Clerk headless hooks, matching `LoginForm`) is
+  confirmed; the backend it needs is not built.
+- **`GET /articles/{id}/verification` (the composed trust-status endpoint)
+  does not exist.** Correctly deferred — it needs Evidence, Review, and
+  Dispute data, none of which exist yet. Most of `/verification-result` still
+  shows mock data because of this, not because it wasn't wired.
+- **No backend search endpoint** — `VerificationHero`'s search/scan tabs,
+  `RecentlyVerified`, and `SavedArticles` still navigate to the param-less
+  mock verification route, since there's no way to look up an article by
+  text/URL/scan yet.
+- **`apps/web` has no `tsconfig.json`.** Pre-existing gap (Figma Make export),
+  not introduced this sprint, but more consequential now that real
+  application logic lives in these files — nothing typechecks them
+  automatically as part of `vite build`. Every file touched this sprint was
+  typechecked ad-hoc instead (explicit `tsc` flags standing in for a missing
+  config). Repay: add a real `tsconfig.json`, or keep doing ad-hoc checks
+  deliberately and say so.
+- **The `TEST_DATABASE_URL` test escape hatch is single-file-parallelism only**,
+  enforced by a code comment, not tooling. Using it for more than one test file
+  at a time without `--no-file-parallelism`-equivalent care will race.
 - **`/simple-login` and `/reader-portal` still exist in `apps/web`**, despite
-  being confirmed dead. Unchanged from Sprint 1 — still deferred to Sprint 3+.
+  being confirmed dead since Sprint 1. Still deferred — nothing this sprint
+  touched them.
 - **Fixed but worth tracking (Sprint 1):** `apps/web/package.json` had 54
   malformed duplicate dependency keys (Figma Make export artifact) that blocked
   `pnpm install`; removed. 41 files under `apps/web/src/app/components/ui/` had
   version-pinned import specifiers that blocked `vite build`; stripped
   mechanically. Neither touched visual or behavioral code — see
   SPRINT_1_REPORT.md Section 8.
+- **Fixed and important (Sprint 3):** the Sprint 1 append-only trigger was
+  silently discarding every write, not just the ones it meant to block, and
+  `apps/api` had no CORS support at all (every authenticated browser request
+  silently failed preflight) — see SPRINT_3_REPORT.md Sections 2 and 5. Both
+  fixed. Neither was catchable by typecheck, curl, or the in-process
+  integration test suite — only a real browser driving the real app surfaced
+  them. Worth remembering before declaring any future sprint done on the
+  strength of automated tests alone.
 
 ## How to run
 
-Confirmed working this sprint:
+Confirmed working this sprint (against a real Postgres, not Docker's — and,
+for the frontend, a real Chrome browser):
 
 ```
 pnpm install                                   # workspace install — verified
-pnpm typecheck                                 # apps/api + packages/shared — verified, 0 errors
-pnpm lint                                      # apps/api + packages/shared — verified, 0 errors/warnings
-docker compose up                              # brings up local Postgres — compose file reviewed,
-                                                # not actually run (no Docker in this environment)
+pnpm typecheck                                 # apps/api + packages/shared + packages/anchoring — 0 errors
+pnpm lint                                      # same three — 0 errors/warnings
+pnpm --filter @sourceit/shared db:migrate      # applies all 5 migrations for real — verified
+pnpm --filter @sourceit/shared seed            # verified against a real database
+pnpm --filter @sourceit/anchoring test         # 13/13 — verified
+TEST_DATABASE_URL=<url> pnpm exec vitest run test/me.integration.test.ts        # 3/3 — verified
+TEST_DATABASE_URL=<url> pnpm exec vitest run test/articles.integration.test.ts  # 18/18 — verified
+pnpm --filter @sourceit/api dev                # needs .env (DATABASE_URL, CLERK_*, CORS_ORIGIN) — verified
+pnpm --filter @sourceit/web dev                # needs apps/web/.env.local (VITE_CLERK_PUBLISHABLE_KEY, VITE_API_BASE_URL) — verified
 ```
 
-`apps/api` was started directly (`pnpm exec tsx src/server.ts`, dummy env vars) and
-verified live: `GET /healthz` → 200, `GET /readyz` → 503 when the database is
-unreachable (confirms it actually checks), `GET /me` with no auth header → 401,
-an unknown route → 404 — all in the standard error envelope, all logged as
-structured JSON with a request id. Starting the server with required env vars
-unset crashes immediately with a Zod error naming exactly what's missing.
+(The two `TEST_DATABASE_URL` runs need `--no-file-parallelism`-equivalent care
+if run together — see Known debt above; run one file at a time as shown.)
 
-Not yet possible here: `pnpm test` (Testcontainers needs Docker), applying
-migrations to a real Postgres, running the seed script, or exercising `GET /me`
-against a real Clerk session and a real database row at the same time.
+Live-verified in an actual browser this sprint (see SPRINT_3_REPORT.md
+Section 7 for the full walkthrough): real Clerk login with a second-factor
+step, publishing an article through the real UI, that article appearing in
+the real publisher article list, and its real headline/version history
+rendering on its public verification page.
+
+Still not possible here: `docker compose up` specifically, or Testcontainers
+(both need Docker, unavailable in this environment).
