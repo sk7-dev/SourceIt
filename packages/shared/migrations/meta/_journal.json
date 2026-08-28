@@ -15,6 +15,27 @@
       "when": 1787763835086,
       "tag": "0001_append_only_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787791050113,
+      "tag": "0002_add_article_archived_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787791050114,
+      "tag": "0003_fix_append_only_error_message",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787791050115,
+      "tag": "0004_fix_append_only_trigger_silently_blocking_drafts",
+      "breakpoints": true
     }
   ]
 }
