@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "../components/ui/button";
 import PublisherSidebar from "../components/publisher/PublisherSidebar";
@@ -10,12 +10,30 @@ import RecentActivity from "../components/publisher/RecentActivity";
 import CredibilityPanel from "../components/publisher/CredibilityPanel";
 import ReviewsDisputes from "../components/publisher/ReviewsDisputes";
 import PublisherProfileCard from "../components/publisher/PublisherProfileCard";
+import { useApiClient } from "../lib/apiClient";
 
 export default function PublisherPortal() {
+  const api = useApiClient();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [showPublishForm, setShowPublishForm] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [publisherId, setPublisherId] = useState<string | null>(null);
+  const [meError, setMeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.GET("/me").then(({ data, error }) => {
+      if (error || !data) {
+        setMeError("Signed in, but no SourceIt account exists for this session yet");
+        return;
+      }
+      if (data.publisherIds.length === 0) {
+        setMeError("This account isn't a member of any publisher yet");
+        return;
+      }
+      setPublisherId(data.publisherIds[0]);
+    });
+  }, [api]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/30 flex">
@@ -58,21 +76,29 @@ export default function PublisherPortal() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Main Content */}
             <div className="lg:col-span-2 space-y-6">
+              {meError && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  {meError}
+                </div>
+              )}
+
               {/* Publish Article Panel */}
               {!showPublishForm && (
                 <PublishArticlePanel onStartClick={() => setShowPublishForm(true)} />
               )}
 
               {/* Article Submission Form */}
-              {showPublishForm && (
-                <PublishArticlePanel 
-                  showForm={true} 
-                  onCancel={() => setShowPublishForm(false)} 
+              {showPublishForm && publisherId && (
+                <PublishArticlePanel
+                  showForm={true}
+                  publisherId={publisherId}
+                  onCancel={() => setShowPublishForm(false)}
+                  onPublished={() => setShowPublishForm(false)}
                 />
               )}
 
               {/* My Articles Table */}
-              <MyArticlesTable />
+              <MyArticlesTable publisherId={publisherId} />
 
               {/* Recent Activity */}
               <RecentActivity />

@@ -1,15 +1,16 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { 
-  Eye, 
-  Edit, 
-  History, 
-  FileCheck, 
-  MoreVertical, 
-  FolderOpen, 
+import {
+  Eye,
+  Edit,
+  History,
+  FileCheck,
+  MoreVertical,
+  FolderOpen,
   Archive,
-  ChevronRight 
+  ChevronRight
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -21,54 +22,34 @@ import {
 } from "../ui/dropdown-menu";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
+import { useApiClient } from "../../lib/apiClient";
+import type { components } from "@sourceit/shared/client";
 
-const articles = [
-  {
-    id: 1,
-    title: "Election Report 2026: Comprehensive Analysis",
-    category: "Politics",
-    date: "2026-04-10",
-    version: "v2.1",
-    status: "Verified",
-    blockchain: "On-chain Logged",
-  },
-  {
-    id: 2,
-    title: "Climate Change Impact on Coastal Cities",
-    category: "Science",
-    date: "2026-04-08",
-    version: "v1.0",
-    status: "Pending Review",
-    blockchain: "Hash Recorded",
-  },
-  {
-    id: 3,
-    title: "Healthcare Reform: What's Next?",
-    category: "Health",
-    date: "2026-04-05",
-    version: "v1.2",
-    status: "Disputed",
-    blockchain: "On-chain Logged",
-  },
-  {
-    id: 4,
-    title: "Tech Giants Face New Regulations",
-    category: "Technology",
-    date: "2026-04-02",
-    version: "v3.0",
-    status: "Updated",
-    blockchain: "On-chain Logged",
-  },
-  {
-    id: 5,
-    title: "Economic Outlook 2026-2027",
-    category: "Business",
-    date: "2026-03-28",
-    version: "v1.0",
-    status: "Draft",
-    blockchain: "Not Published",
-  },
-];
+type ArticleVersionSummary = components["schemas"]["ArticleVersionSummary"];
+
+const reviewStatusLabel: Record<string, string> = {
+  draft: "Draft",
+  pending_review: "Pending Review",
+  verified: "Verified",
+};
+
+const anchorStatusLabel: Record<string, string> = {
+  pending: "Hash Recorded",
+  anchored: "On-chain Logged",
+  anchor_failed: "Anchor Failed",
+};
+
+function toRow(item: ArticleVersionSummary) {
+  return {
+    articleId: item.articleId,
+    title: item.headline || "(untitled draft)",
+    category: item.category.charAt(0).toUpperCase() + item.category.slice(1),
+    date: item.publishedAt ? new Date(item.publishedAt).toLocaleDateString() : "Not published",
+    version: item.versionLabel,
+    status: reviewStatusLabel[item.reviewStatus] ?? item.reviewStatus,
+    blockchain: item.anchorStatus ? anchorStatusLabel[item.anchorStatus] ?? item.anchorStatus : "Not Published",
+  };
+}
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -96,8 +77,21 @@ const getBlockchainColor = (status: string) => {
   return "bg-slate-100 text-slate-500 border-slate-200";
 };
 
-export default function MyArticlesTable() {
+interface MyArticlesTableProps {
+  publisherId: string | null;
+}
+
+export default function MyArticlesTable({ publisherId }: MyArticlesTableProps) {
   const navigate = useNavigate();
+  const api = useApiClient();
+  const [rows, setRows] = useState<ReturnType<typeof toRow>[] | null>(null);
+
+  useEffect(() => {
+    if (!publisherId) return;
+    api.GET("/publishers/{publisherId}/articles", { params: { path: { publisherId } } }).then(({ data }) => {
+      if (data) setRows(data.items.map(toRow));
+    });
+  }, [api, publisherId]);
 
   return (
     <Card>
@@ -105,6 +99,13 @@ export default function MyArticlesTable() {
         <CardTitle>My Articles</CardTitle>
       </CardHeader>
       <CardContent>
+        {!publisherId ? (
+          <p className="text-sm text-slate-500 py-6 text-center">No publisher account to show articles for.</p>
+        ) : rows === null ? (
+          <p className="text-sm text-slate-500 py-6 text-center">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-slate-500 py-6 text-center">No articles yet — publish your first one above.</p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -119,8 +120,8 @@ export default function MyArticlesTable() {
               </tr>
             </thead>
             <tbody>
-              {articles.map((article) => (
-                <tr key={article.id} className="border-b border-slate-100 hover:bg-slate-50">
+              {rows.map((article) => (
+                <tr key={article.articleId} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="py-4 px-4">
                     <p className="font-medium text-slate-900 text-sm">{article.title}</p>
                   </td>
@@ -160,7 +161,7 @@ export default function MyArticlesTable() {
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         
-                        <DropdownMenuItem onClick={() => toast.info("Opening article...")}>
+                        <DropdownMenuItem onClick={() => navigate(`/verification-result/${article.articleId}`)}>
                           <Eye className="w-4 h-4" />
                           <span>View Article</span>
                         </DropdownMenuItem>
@@ -189,7 +190,19 @@ export default function MyArticlesTable() {
                           <span>Manage Media & Evidence</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => toast.info("Archiving article...")}>
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            const { error } = await api.POST("/articles/{articleId}/archive", {
+                              params: { path: { articleId: article.articleId } },
+                            });
+                            if (error) {
+                              toast.error("Could not archive this article");
+                              return;
+                            }
+                            toast.success("Article archived");
+                            setRows((prev) => prev?.filter((r) => r.articleId !== article.articleId) ?? null);
+                          }}
+                        >
                           <Archive className="w-4 h-4" />
                           <span>Archive Article</span>
                         </DropdownMenuItem>
@@ -201,6 +214,7 @@ export default function MyArticlesTable() {
             </tbody>
           </table>
         </div>
+        )}
       </CardContent>
     </Card>
   );
