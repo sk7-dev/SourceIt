@@ -5,6 +5,7 @@ import {
   articleSchema,
   articleVersionSchema,
   createArticleRequestSchema,
+  createArticleResponseSchema,
   createArticleVersionRequestSchema,
 } from "../../zod/articles";
 import { verificationResultSchema, notFoundVerificationResultSchema } from "../../zod/trust";
@@ -20,7 +21,7 @@ registry.registerPath({
   security: authed,
   request: { body: { content: { "application/json": { schema: createArticleRequestSchema } } } },
   responses: {
-    201: { description: "Created", content: { "application/json": { schema: articleSchema } } },
+    201: { description: "Created", content: { "application/json": { schema: createArticleResponseSchema } } },
     403: { description: "Not a member of the target publisher, or publisher not verified", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });

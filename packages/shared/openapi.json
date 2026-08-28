@@ -283,10 +283,25 @@
       "ArticleVersionSummary": {
         "type": "object",
         "properties": {
+          "articleId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
           "id": {
             "type": "string",
             "format": "uuid",
             "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "politics",
+              "technology",
+              "health",
+              "science",
+              "business"
+            ]
           },
           "versionLabel": {
             "type": "string"
@@ -303,7 +318,10 @@
             ]
           },
           "anchorStatus": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "pending",
               "anchored",
@@ -320,7 +338,9 @@
           }
         },
         "required": [
+          "articleId",
           "id",
+          "category",
           "versionLabel",
           "headline",
           "reviewStatus",
@@ -706,61 +726,6 @@
           "createdAt"
         ]
       },
-      "CreateArticleRequest": {
-        "type": "object",
-        "properties": {
-          "category": {
-            "type": "string",
-            "enum": [
-              "politics",
-              "technology",
-              "health",
-              "science",
-              "business"
-            ]
-          },
-          "headline": {
-            "type": "string",
-            "minLength": 1
-          },
-          "summary": {
-            "type": "string",
-            "minLength": 1
-          },
-          "content": {
-            "type": "string",
-            "minLength": 1
-          },
-          "authorName": {
-            "type": "string",
-            "minLength": 1
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "sourceLinks": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uri"
-            }
-          },
-          "submit": {
-            "type": "boolean",
-            "default": false
-          }
-        },
-        "required": [
-          "category",
-          "headline",
-          "summary",
-          "content",
-          "authorName"
-        ]
-      },
       "ArticleVersion": {
         "type": "object",
         "properties": {
@@ -893,6 +858,82 @@
           "previousHash",
           "createdAt",
           "publishedAt"
+        ]
+      },
+      "CreateArticleResponse": {
+        "type": "object",
+        "properties": {
+          "article": {
+            "$ref": "#/components/schemas/Article"
+          },
+          "version": {
+            "$ref": "#/components/schemas/ArticleVersion"
+          }
+        },
+        "required": [
+          "article",
+          "version"
+        ]
+      },
+      "CreateArticleRequest": {
+        "type": "object",
+        "properties": {
+          "publisherId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "politics",
+              "technology",
+              "health",
+              "science",
+              "business"
+            ]
+          },
+          "headline": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "authorName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sourceLinks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "submit": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "publisherId",
+          "category",
+          "headline",
+          "summary",
+          "content",
+          "authorName"
         ]
       },
       "CreateArticleVersionRequest": {
@@ -2292,7 +2333,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Article"
+                  "$ref": "#/components/schemas/CreateArticleResponse"
                 }
               }
             }
