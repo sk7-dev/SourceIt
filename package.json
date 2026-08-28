@@ -9,9 +9,9 @@
   "packageManager": "pnpm@12.0.0",
   "scripts": {
     "dev": "pnpm --filter @sourceit/api dev",
-    "lint": "eslint apps/api packages/shared",
-    "typecheck": "pnpm --filter @sourceit/api typecheck && pnpm --filter @sourceit/shared typecheck",
-    "test": "pnpm --filter @sourceit/api test"
+    "lint": "eslint apps/api packages/shared packages/anchoring",
+    "typecheck": "pnpm --filter @sourceit/api typecheck && pnpm --filter @sourceit/shared typecheck && pnpm --filter @sourceit/anchoring typecheck",
+    "test": "pnpm --filter @sourceit/api test && pnpm --filter @sourceit/anchoring test"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
