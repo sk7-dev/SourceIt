@@ -14,6 +14,10 @@ export const articles = pgTable("articles", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // A publisher may archive at any lifecycle stage (resolves
+  // OPEN_QUESTIONS.md #9) — hides it from listings without deleting the
+  // append-only version history underneath it. Null = not archived.
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 }, (table) => ({
   // Serves "list this publisher's articles" (MyArticlesTable.tsx).
   publisherIdIdx: index("articles_publisher_id_idx").on(table.publisherId),
