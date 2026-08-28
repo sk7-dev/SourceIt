@@ -2,8 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { History, GitCompare, Eye } from "lucide-react";
+import type { components } from "@sourceit/shared/client";
 
-const versions = [
+type ArticleVersion = components["schemas"]["ArticleVersion"];
+
+const mockVersions = [
   {
     version: "v2.0",
     label: "Current",
@@ -27,7 +30,31 @@ const versions = [
   },
 ];
 
-export default function VersionHistory() {
+const changeTypeLabel: Record<string, string> = {
+  original_published: "Original",
+  major_update: "Major update",
+  minor_correction: "Minor correction",
+};
+
+interface VersionHistoryProps {
+  // Real, newest-first version list from GET /articles/{id}/versions — pass
+  // `null` (the default) to keep showing the mock data, an empty/populated
+  // array once real data is available (see pages/VerificationResult.tsx).
+  versions?: ArticleVersion[] | null;
+}
+
+export default function VersionHistory({ versions: realVersions = null }: VersionHistoryProps) {
+  const versions =
+    realVersions === null
+      ? mockVersions
+      : realVersions.map((v, index) => ({
+          version: v.versionLabel,
+          label: changeTypeLabel[v.changeType] ?? v.changeType,
+          timestamp: v.publishedAt ? new Date(v.publishedAt).toLocaleString() : "Not yet published",
+          changeSummary: v.changeSummary ?? "Initial publication",
+          isCurrent: index === 0,
+        }));
+
   return (
     <Card>
       <CardHeader>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Bookmark, Share2, AlertCircle, CheckCircle, Menu } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -10,12 +10,52 @@ import EvidenceSection from "../components/verification/EvidenceSection";
 import PublisherCredibility from "../components/verification/PublisherCredibility";
 import ReviewerNotes from "../components/verification/ReviewerNotes";
 import IntegrityRecord from "../components/verification/IntegrityRecord";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
+import { publicApiClient } from "../lib/apiClient";
+import type { components } from "@sourceit/shared/client";
 
+type ArticleVersion = components["schemas"]["ArticleVersion"];
+
+// Only wired for the sub-parts the backend can actually back so far (the
+// article itself and its public version history — GET /articles/{id} and
+// GET /articles/{id}/versions). TrustSummaryCard, PublisherCredibility,
+// EvidenceSection, ReviewerNotes, and IntegrityRecord all need the composed
+// GET /articles/{id}/verification endpoint, which doesn't exist yet (it needs
+// Evidence, Review, and Dispute data — see docs/PROJECT_STATE.md) — they stay
+// on mock data until that endpoint exists, whether or not an articleId is
+// present in the URL.
 export default function VerificationResult() {
   const navigate = useNavigate();
+  const { articleId } = useParams();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [versions, setVersions] = useState<ArticleVersion[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!articleId) return;
+    setLoadError(null);
+    setVersions(null);
+
+    publicApiClient
+      .GET("/articles/{articleId}", { params: { path: { articleId } } })
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setLoadError("This article is not registered in SourceIt's verification system");
+        }
+      });
+
+    publicApiClient
+      .GET("/articles/{articleId}/versions", { params: { path: { articleId } } })
+      .then(({ data }) => {
+        if (data) setVersions(data.items);
+      });
+  }, [articleId]);
+
+  const currentVersion = versions?.[0] ?? null;
+  const subtitle = articleId
+    ? loadError ?? currentVersion?.headline ?? "Loading…"
+    : "Climate Change Impact on Global Agriculture";
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -57,7 +97,7 @@ export default function VerificationResult() {
                   Verification Result
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-600 truncate">
-                  Climate Change Impact on Global Agriculture
+                  {subtitle}
                 </p>
               </div>
             </div>
@@ -83,26 +123,35 @@ export default function VerificationResult() {
 
         {/* Content Area */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
-          {/* Trust Summary */}
-          <TrustSummaryCard />
+          {articleId && loadError ? (
+            <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white p-12 text-center">
+              <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+              <p className="text-slate-900 font-medium">{loadError}</p>
+            </div>
+          ) : (
+            <>
+              {/* Trust Summary */}
+              <TrustSummaryCard />
 
-          {/* Publisher Credibility & Evidence - Responsive Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <PublisherCredibility />
-            <EvidenceSection />
-          </div>
+              {/* Publisher Credibility & Evidence - Responsive Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <PublisherCredibility />
+                <EvidenceSection />
+              </div>
 
-          {/* Version History */}
-          <VersionHistory />
+              {/* Version History */}
+              <VersionHistory versions={articleId ? (versions ?? []) : null} />
 
-          {/* Comparison Section */}
-          <ComparisonSection />
+              {/* Comparison Section */}
+              <ComparisonSection />
 
-          {/* Reviewer Notes */}
-          <ReviewerNotes />
+              {/* Reviewer Notes */}
+              <ReviewerNotes />
 
-          {/* Blockchain Integrity Record */}
-          <IntegrityRecord />
+              {/* Blockchain Integrity Record */}
+              <IntegrityRecord />
+            </>
+          )}
         </main>
       </div>
     </div>

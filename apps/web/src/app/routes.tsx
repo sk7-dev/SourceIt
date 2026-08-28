@@ -27,7 +27,16 @@ export const router = createBrowserRouter([
     Component: UserPortal,
   },
   {
+    // Kept param-less for the existing mock entry points (VerificationHero's
+    // search/scan tabs, RecentlyVerified, SavedArticles) — none of them have a
+    // real article id to navigate with, since there's no backend search
+    // endpoint yet (only exact-id lookup). VerificationResult renders the
+    // static mock when no id is present, and real fetched data when one is.
     path: "/verification-result",
+    Component: VerificationResult,
+  },
+  {
+    path: "/verification-result/:articleId",
     Component: VerificationResult,
   },
   {
