@@ -9,6 +9,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   CLERK_SECRET_KEY: z.string().min(1),
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
+  // Comma-separated list of allowed browser origins (e.g. the Vite dev
+  // server). Unset means "no cross-origin browser access" outside
+  // development, where any origin is allowed for convenience.
+  CORS_ORIGIN: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
