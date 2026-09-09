@@ -1342,6 +1342,22 @@
           "filename"
         ]
       },
+      "UploadEvidenceMultipart": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UploadEvidenceRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        ]
+      },
       "CreateReviewRequest": {
         "type": "object",
         "properties": {
@@ -2860,6 +2876,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such published version (unknown, or still a draft)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -2887,9 +2913,9 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/UploadEvidenceRequest"
+                "$ref": "#/components/schemas/UploadEvidenceMultipart"
               }
             }
           }
@@ -2905,8 +2931,28 @@
               }
             }
           },
+          "400": {
+            "description": "Missing file part for a non-source tag, or malformed fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such version, or the caller may not write its draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "Version is no longer a draft — evidence binds at submission and is then append-only",
+            "description": "Version is no longer a draft — evidence binds while drafting and is then append-only",
             "content": {
               "application/json": {
                 "schema": {

@@ -1058,6 +1058,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description No such published version (unknown, or still a draft) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1073,7 +1082,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["UploadEvidenceRequest"];
+                    "multipart/form-data": components["schemas"]["UploadEvidenceMultipart"];
                 };
             };
             responses: {
@@ -1086,7 +1095,25 @@ export interface paths {
                         "application/json": components["schemas"]["Evidence"];
                     };
                 };
-                /** @description Version is no longer a draft — evidence binds at submission and is then append-only */
+                /** @description Missing file part for a non-source tag, or malformed fields */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such version, or the caller may not write its draft */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Version is no longer a draft — evidence binds while drafting and is then append-only */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2255,6 +2282,10 @@ export interface components {
             caption?: string;
             /** Format: uri */
             sourceUrl?: string;
+        };
+        UploadEvidenceMultipart: components["schemas"]["UploadEvidenceRequest"] & {
+            /** Format: binary */
+            file?: string;
         };
         CreateReviewRequest: {
             /** @enum {string} */
