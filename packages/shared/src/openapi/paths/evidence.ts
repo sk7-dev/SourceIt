@@ -5,6 +5,16 @@ import { evidenceSchema, uploadEvidenceRequestSchema } from "../../zod/evidence"
 
 const versionIdParam = z.object({ versionId: uuidSchema });
 
+// multipart/form-data body: the non-file fields of uploadEvidenceRequestSchema
+// plus an optional binary `file` part (present for every tag except `source`,
+// which archives `sourceUrl` server-side instead). See docs/sprints/SPRINT_5_REPORT.md
+// for why this replaced the Sprint 1 application/json shape.
+const uploadEvidenceMultipartSchema = uploadEvidenceRequestSchema
+  .extend({
+    file: z.string().openapi({ type: "string", format: "binary" }).optional(),
+  })
+  .openapi("UploadEvidenceMultipart");
+
 registry.registerPath({
   method: "get",
   path: "/versions/{versionId}/evidence",
@@ -13,6 +23,7 @@ registry.registerPath({
   request: { params: versionIdParam, query: paginationQuerySchema },
   responses: {
     200: { description: "OK", content: { "application/json": { schema: paginatedResponseSchema(evidenceSchema) } } },
+    404: { description: "No such published version (unknown, or still a draft)", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -24,10 +35,12 @@ registry.registerPath({
   security: authed,
   request: {
     params: versionIdParam,
-    body: { content: { "application/json": { schema: uploadEvidenceRequestSchema } } },
+    body: { content: { "multipart/form-data": { schema: uploadEvidenceMultipartSchema } } },
   },
   responses: {
     201: { description: "Created", content: { "application/json": { schema: evidenceSchema } } },
-    409: { description: "Version is no longer a draft — evidence binds at submission and is then append-only", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    400: { description: "Missing file part for a non-source tag, or malformed fields", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such version, or the caller may not write its draft", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    409: { description: "Version is no longer a draft — evidence binds while drafting and is then append-only", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
