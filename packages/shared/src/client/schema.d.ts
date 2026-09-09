@@ -2177,6 +2177,11 @@ export interface components {
              */
             createdAt: string;
         };
+        MerkleProofEntry: {
+            hash: string;
+            /** @enum {string} */
+            side: "left" | "right";
+        };
         AnchorRecord: {
             /**
              * Format: uuid
@@ -2185,8 +2190,10 @@ export interface components {
             articleVersionId: string;
             /** @enum {string} */
             status: "pending" | "anchored" | "anchor_failed";
-            leafHash: string;
-            merkleProof: string[] | null;
+            contentHash: string;
+            merkleProof: components["schemas"]["MerkleProofEntry"][] | null;
+            merkleRoot: string | null;
+            chainTxHash: string | null;
             blockHeight: number | null;
             chainConfirmations: number;
             /**

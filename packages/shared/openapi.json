@@ -1064,6 +1064,26 @@
           "createdAt"
         ]
       },
+      "MerkleProofEntry": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right"
+            ]
+          }
+        },
+        "required": [
+          "hash",
+          "side"
+        ]
+      },
       "AnchorRecord": {
         "type": "object",
         "properties": {
@@ -1080,8 +1100,9 @@
               "anchor_failed"
             ]
           },
-          "leafHash": {
-            "type": "string"
+          "contentHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
           },
           "merkleProof": {
             "type": [
@@ -1089,8 +1110,21 @@
               "null"
             ],
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MerkleProofEntry"
             }
+          },
+          "merkleRoot": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "chainTxHash": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "blockHeight": {
             "type": [
@@ -1114,8 +1148,10 @@
         "required": [
           "articleVersionId",
           "status",
-          "leafHash",
+          "contentHash",
           "merkleProof",
+          "merkleRoot",
+          "chainTxHash",
           "blockHeight",
           "chainConfirmations",
           "anchoredAt"
