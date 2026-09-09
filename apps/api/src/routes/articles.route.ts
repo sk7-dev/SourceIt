@@ -9,13 +9,14 @@ import {
 } from "@sourceit/shared";
 import { createArticlesRepository } from "../repositories/articles.repository";
 import { createPublishersRepository } from "../repositories/publishers.repository";
+import { createReviewersRepository } from "../repositories/reviewers.repository";
 import { createAuthorization } from "../auth/can";
 import { createArticlesService } from "../services/articles.service";
 
 export function registerArticleRoutes(app: FastifyInstance) {
   const articlesRepo = createArticlesRepository(app.db);
   const publishersRepo = createPublishersRepository(app.db);
-  const authz = createAuthorization(publishersRepo);
+  const authz = createAuthorization(publishersRepo, createReviewersRepository(app.db));
   const service = createArticlesService(articlesRepo, authz);
 
   app.post("/articles", { preHandler: app.requireActor }, async (request, reply) => {

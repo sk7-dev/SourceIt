@@ -7,6 +7,7 @@ import {
 } from "@sourceit/shared";
 import { createEvidenceRepository } from "../repositories/evidence.repository";
 import { createPublishersRepository } from "../repositories/publishers.repository";
+import { createReviewersRepository } from "../repositories/reviewers.repository";
 import { createAuthorization } from "../auth/can";
 import { createEvidenceService } from "../services/evidence.service";
 import { ValidationError } from "../errors";
@@ -16,7 +17,7 @@ import { ValidationError } from "../errors";
 export function registerEvidenceRoutes(app: FastifyInstance) {
   const repo = createEvidenceRepository(app.db);
   const publishersRepo = createPublishersRepository(app.db);
-  const authz = createAuthorization(publishersRepo);
+  const authz = createAuthorization(publishersRepo, createReviewersRepository(app.db));
   const service = createEvidenceService(repo, authz, app.objectStore, app.sourceArchiver);
 
   app.get<{ Params: { versionId: string } }>(
