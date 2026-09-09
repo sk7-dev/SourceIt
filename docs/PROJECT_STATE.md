@@ -1,36 +1,44 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 5  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring + Evidence slices complete, verified against a real Postgres
+**Last updated:** end of Sprint 6  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring + Evidence + Review slices complete, verified against a real Postgres
 
 ## Resume here
 
-The Evidence slice is done. A publisher's member can attach evidence to a
-**draft** version via `POST /versions/{versionId}/evidence` (multipart) — a file,
-or for `tag=source` an external URL that is fetched and snapshotted at attach
-time; the bytes are SHA-256 hashed and stored content-addressed through a
-pluggable `ObjectStore` (in-memory fake only this sprint), and the version's
-evidence set freezes when the version leaves draft (append-only, DB trigger).
-`GET /versions/{versionId}/evidence` is public and cursor-paginated, and 404s
-for a draft or unknown version so nothing non-public is disclosed. The
-verification page's Supporting Evidence panel now renders that real list. No
-migration was needed — the `evidence` table and its append-only trigger have
-existed since Sprint 1. See [SPRINT_5_REPORT.md](sprints/SPRINT_5_REPORT.md).
+The Review slice is done. An **approved** reviewer
+(`reviewers.approval_status = 'approved'`) with no `publisher_members` row for
+the article's publisher can `POST /versions/{versionId}/reviews`
+(`confirmation` / `clarification` / `correction_note`) against a published
+version; the structural conflict-of-interest check lives in `can` and is
+enforced without being disclosed. `GET /versions/{versionId}/reviews` is public
+and cursor-paginated and 404s a draft/unknown version; it exposes only the
+reviewer's public identity (`displayName` = pseudonym when chosen, never
+`accounts.fullName`). `POST /reviews/{reviewId}/retract` inserts a
+`review_retractions` row — the review itself is never touched, its comment stays
+verbatim, and a second retract is a 409. The verification page's Reviewer Notes
+panel renders that real list. No migration — the `reviews` /
+`review_retractions` tables and their triggers have existed since Sprint 1.
+`createAuthorization` now takes a second arg (`reviewersRepo`); the three other
+routes that build an authorizer were updated. See
+[SPRINT_6_REPORT.md](sprints/SPRINT_6_REPORT.md).
 
-Still mock / unbuilt, deliberately, after Sprint 5:
+Still mock / unbuilt, deliberately, after Sprint 6:
 
-- **Evidence hashes are not anchored** — files are hashed and stored, but the
-  anchoring worker still Merkle-batches version content hashes only.
-- **No real object store** and **no blob-read endpoint** — stored evidence
-  bytes live in the API process and can't be fetched back; "View File" on the
-  verification page is still inert.
-- **No real source archiver** — `createFakeSourceArchiver` only, no network; a
-  guarded server-side fetch is a Phase 5 concern.
-- **Frontend evidence write path unwired** — `MediaEvidenceUpload.tsx` still
-  holds files in local state and sends nothing; wiring it needs a two-phase
-  publish flow (deemed a component restructure, deferred).
+- **`GET /articles/{id}/verification` still unbuilt** — now needs only Dispute
+  data + the trust-status computation (Evidence and Review both exist).
+  TrustSummaryCard and PublisherCredibility on `/verification-result` stay mock
+  until it lands.
+- **No reviewer-facing write UI** — there is essentially no reviewer frontend
+  in the Figma Make export; submitting/retracting a review from the browser
+  would be new component structure (deferred). `ReviewsDisputes.tsx` (reviews +
+  disputes in one publisher view) is untouched, waiting on the Dispute slice.
+- **Conflict of interest is current-membership-only** — a reviewer's
+  self-declared past employer (`reviewers.affiliation` free text) does not block
+  them; only a live `publisher_members` row does (Sprint 1 decision).
+- Carried from Sprint 5: evidence hashes not anchored; no real `ObjectStore` /
+  `SourceArchiver` / evidence-blob-read endpoint; evidence frontend write path
+  unwired.
 - Carried from Sprint 4: no real chain `AnchorProvider` (fake only); no admin
-  re-queue for `anchor_failed`; `GET /articles/{id}/verification` still unbuilt
-  (needs Review + Dispute now that Evidence exists); account provisioning /
-  `RegisterForm`; any backend search.
+  re-queue for `anchor_failed`.
+- Carried longer: account provisioning / `RegisterForm`; any backend search.
 
 ## Sprint ledger
 
@@ -42,13 +50,13 @@ Still mock / unbuilt, deliberately, after Sprint 5:
 | 3 | Article vertical slice: full backend CRUD, packages/anchoring, generated client — verified live | Complete with carryover | [SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) |
 | 4 | Anchoring slice: Merkle tree + proof + AnchorProvider, durable crash-safe worker, GET /versions/{id}/anchor, frontend anchor state | Complete with carryover | [SPRINT_4_REPORT.md](sprints/SPRINT_4_REPORT.md) |
 | 5 | Evidence slice: multipart POST + public GET /versions/{id}/evidence, content-addressed ObjectStore + SourceArchiver seams (fakes), append-only, frontend evidence list | Complete with carryover | [SPRINT_5_REPORT.md](sprints/SPRINT_5_REPORT.md) |
+| 6 | Review slice: GET/POST /versions/{id}/reviews + POST /reviews/{id}/retract, approved-reviewer gate, structural COI enforcement, append-only retraction, frontend reviewer notes | Complete with carryover | [SPRINT_6_REPORT.md](sprints/SPRINT_6_REPORT.md) |
 
 ## Current domain model
 
 Supersedes `docs/DOMAIN.md` where they disagree. 18 tables, **unchanged since
-Sprint 1** (Sprint 4 added columns to `anchor_batches`; Sprint 5 added no schema
-at all). Sprint 5 is the first slice to build against an entity whose table and
-constraints already fit with no migration.
+Sprint 1** (Sprint 4 added columns to `anchor_batches`; Sprints 5 and 6 added no
+schema at all — both built against Sprint 1 tables that already fit).
 
 ```
 Account ──has role──> reader | publisher | reviewer | admin
@@ -56,27 +64,30 @@ Account ──has role──> reader | publisher | reviewer | admin
 
 Publisher ──mirrors──> Clerk Organization
 Publisher (1) ──has──> (N) PublisherMember ──> Account   [org membership, also the
-                                                            reviewer-COI join table]
+                                                            reviewer-COI join table —
+                                                            a members row for the
+                                                            publisher blocks review:create]
 Publisher (1) ──has──> (N) CredibilityScoreHistory point
 Publisher (1) ──publishes──> (N) Article
 
 Article   (1) ──has──> (N) ArticleVersion   [append-only once non-draft, hash-chained
                                               via previousVersionId/previousHash]
 ArticleVersion (1) ──has──> (N) Evidence          [binds to version, not article;
-                                                    attached only while the version is
-                                                    a draft, then frozen with it;
-                                                    bytes SHA-256'd + content-addressed;
-                                                    tag=source is fetched+snapshotted
-                                                    (isArchivedSnapshot)]
+                                                    attached only while draft, then
+                                                    frozen; bytes SHA-256'd +
+                                                    content-addressed; tag=source
+                                                    fetched+snapshotted]
 ArticleVersion (1) ──has──> (1) AnchorRecord      [pending/anchored/anchor_failed,
-                                                    always present once submitted;
-                                                    merkleProof + batch's root/tx
-                                                    filled by apps/worker on confirm]
+                                                    always present once submitted]
 ArticleVersion (1) ──has──> (0..1) Redaction      [public tombstone, if redacted]
-ArticleVersion (1) ──has──> (N) Review            [append-only; retraction = a
-                                                    ReviewRetraction row, never an
-                                                    UPDATE]
-ArticleVersion (1) ──has──> (N) Dispute           [separate entity, own lifecycle]
+ArticleVersion (1) ──has──> (N) Review            [append-only; attach only to a
+                                                    non-draft version, by an approved
+                                                    non-affiliated reviewer; retraction
+                                                    = a ReviewRetraction row, never an
+                                                    UPDATE; isRetracted/retractedReason
+                                                    derived from that join]
+ArticleVersion (1) ──has──> (N) Dispute           [separate entity, own lifecycle —
+                                                    not yet built]
 Dispute        (1) ──has──> (N) DisputeEvent      [append-only lifecycle log;
                                                     current status = latest event,
                                                     or "open" if none]
@@ -99,7 +110,7 @@ publisher_unverified, notfound) is **not a table** — computed at read time by
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` defines the full contract (33 endpoints); 12 are
+`packages/shared/openapi.json` defines the full contract (33 endpoints); 15 are
 implemented, all verified against a real database. `GET /healthz` / `GET /readyz`
 also exist but are intentionally not in `openapi.json`.
 
@@ -118,6 +129,9 @@ also exist but are intentionally not in `openapi.json`.
 | GET | /versions/{versionId}/anchor | public | 4 |
 | GET | /versions/{versionId}/evidence | public | 5 |
 | POST | /versions/{versionId}/evidence | Clerk bearer token | 5 |
+| GET | /versions/{versionId}/reviews | public | 6 |
+| POST | /versions/{versionId}/reviews | Clerk bearer token | 6 |
+| POST | /reviews/{reviewId}/retract | Clerk bearer token | 6 |
 
 ## Decisions
 
@@ -158,6 +172,8 @@ also exist but are intentionally not in `openapi.json`.
   structural check is a real DB constraint the build prompt's "enforce it, don't
   disclose it" requires. Revisit: if reviewers need to be blocked from
   ex-employers too (self-declared history), which was considered and deferred.
+  **Enforced in Sprint 6: the `review:create` gate in `can` denies an approved
+  reviewer who is a `publisher_members` row for the publisher.**
 - 2026-08-26 — Redaction tombstones (`redactions` table) are fully public:
   category, position, hash, and timestamp all visible to any reader. Why: matches
   the build prompt's transparency invariant most directly; the legal detail
@@ -188,8 +204,8 @@ also exist but are intentionally not in `openapi.json`.
   attach time, not merely linked (`evidence.isArchivedSnapshot`,
   `evidence.sourceUrl`). Why: verification must not silently degrade when a
   third-party URL rots. Revisit: if archival storage cost becomes material at
-  scale, which is not expected at year-one volume. **Implemented in Sprint 5
-  behind a `SourceArchiver` seam; only the in-memory fake ships.**
+  scale. **Implemented in Sprint 5 behind a `SourceArchiver` seam; only the
+  in-memory fake ships.**
 - 2026-08-26 — Reviewer approval has a real admin queue and `admin` role
   (`reviewers.approvalStatus`, `PATCH`-equivalent decision endpoint), not manual
   database edits. Why: user explicitly chose to build this over the
@@ -205,7 +221,9 @@ also exist but are intentionally not in `openapi.json`.
   (`reviewers.pseudonym`, `useLegalName`); the real name (`accounts.fullName`) is
   always retained and never exposed by any public-facing schema
   (`ReviewerPublic`). Why: user chose pseudonym support over public-real-name-only.
-  Revisit: never without a change to the accountability requirement.
+  Revisit: never without a change to the accountability requirement. **Enforced in
+  Sprint 6: `reviews.service.ts` derives `displayName` and never selects
+  `fullName` into the response.**
 - 2026-08-26 — `/simple-login` and `/reader-portal` are confirmed dead and slated
   for deletion; the rest of the sidebar's unwired local state is left alone
   (single-scrolling-page layout is intentional, not a bug). Why: user confirmed
@@ -262,16 +280,14 @@ also exist but are intentionally not in `openapi.json`.
   change. Revisit: when a real chain is actually being deployed to.
 - 2026-09-08 — `anchorRecordSchema` (Sprint 1) amended on implementation:
   `merkleProof` is `{hash, side}[]` not `string[]`; the leaf field is renamed
-  `contentHash` (the value a verifier hashes; the Merkle leaf is the
-  domain-separated derivation); `merkleRoot` + `chainTxHash` added from the
-  batch. Documented inline. Why: the Sprint 1 shape couldn't express a real
-  inclusion proof. Revisit: never without a contract change.
+  `contentHash`; `merkleRoot` + `chainTxHash` added from the batch. Documented
+  inline. Why: the Sprint 1 shape couldn't express a real inclusion proof.
+  Revisit: never without a contract change.
 - 2026-09-08 — `confirmBatch` falls back to `provider.submit()` (idempotent on
   root) when `provider.getReceipt()` throws, so a `submitted` batch is always
   drivable to completion from the persisted root alone. Why: a failing test
   showed a batch could wedge after a restart that lost provider state. Revisit:
-  if a real provider's `submit` is ever not safe to call repeatedly (the
-  interface contract forbids that).
+  if a real provider's `submit` is ever not safe to call repeatedly.
 - 2026-09-09 — `POST /versions/{versionId}/evidence` is `multipart/form-data`,
   amending the Sprint 1 `application/json` shape on implementation.
   `uploadEvidenceRequestSchema` is the non-file field set; a new
@@ -281,25 +297,35 @@ also exist but are intentionally not in `openapi.json`.
   without a contract change.
 - 2026-09-09 — Object storage and source-URL archival sit behind injectable
   `ObjectStore` / `SourceArchiver` seams in `apps/api` (defaulted in
-  `buildApp`), with only in-memory/deterministic fakes shipped this sprint —
-  same call as `AnchorProvider`. A real content-addressed store and a guarded
-  server-side fetch (SSRF-listing, redirect/body caps, timeouts) plug in with no
-  service or route change. Why: confirmed with the user; the real fetch is a
-  Phase 5 threat-pass concern. Revisit: when deploying somewhere real.
+  `buildApp`), with only in-memory/deterministic fakes shipped — same call as
+  `AnchorProvider`. A real content-addressed store and a guarded server-side
+  fetch (SSRF-listing, redirect/body caps, timeouts) plug in with no service or
+  route change. Why: confirmed with the user; the real fetch is a Phase 5
+  threat-pass concern. Revisit: when deploying somewhere real.
 - 2026-09-09 — Evidence attaches only while the owning version is a draft; once
-  the version leaves draft the evidence set is frozen with it (409 on a later
-  attach), and `evidence` rows are append-only (`evidence_append_only` trigger,
-  since Sprint 1). Why: the build prompt's "evidence binds to a version, not an
-  asset" reads most cleanly as "binds at draft time, immutable thereafter";
-  matches the frontend, where evidence is only ever uploaded on the publish
-  form. Revisit: never without a change to what append-only protects.
-- 2026-09-09 — `GET /versions/{versionId}/evidence` keyset-paginates on
-  `evidence.id`, not `created_at`. Why: Postgres `timestamptz` is microsecond,
-  a JS `Date`/ISO string is millisecond, so a `created_at` cursor re-serves
-  same-millisecond rows (a real test caught this). Order within a version's
-  evidence is a flat list, so `id` order costs nothing. Revisit: if evidence
-  ever needs a guaranteed chronological read, use a full-precision composite
-  cursor.
+  it leaves draft the evidence set is frozen (409 on a later attach), and
+  `evidence` rows are append-only (`evidence_append_only` trigger, since Sprint
+  1). Why: "evidence binds to a version, not an asset" reads most cleanly as
+  "binds at draft time, immutable thereafter"; matches the frontend. Revisit:
+  never without a change to what append-only protects.
+- 2026-09-09 — `GET /versions/{versionId}/evidence` (and, Sprint 6,
+  `GET /versions/{versionId}/reviews`) keyset-paginate on the row `id`, not
+  `created_at`. Why: Postgres `timestamptz` is microsecond, a JS `Date`/ISO
+  string is millisecond, so a `created_at` cursor re-serves same-millisecond
+  rows (a real test caught this). Order within a version's evidence/reviews is a
+  flat list, so `id` order costs nothing. Revisit: if a guaranteed
+  chronological read is ever needed, use a full-precision composite cursor.
+- 2026-09-09 — `POST /versions/{versionId}/reviews` requires the version to be
+  non-draft and the caller to be an `approved` reviewer who is **not** a
+  `publisher_members` row for the publisher; the check lives in `can`
+  (`review:create`), and its denial message names the rule but never the
+  caller's own affiliation. `POST /reviews/{reviewId}/retract` is author-only
+  and models retraction as an append-only `review_retractions` row
+  (UNIQUE `review_id` → second retract is 409); `isRetracted` /
+  `retractedReason` are derived from a LEFT JOIN, never stored on `reviews`.
+  `createAuthorization` gained a `reviewersRepo` parameter. Why: the build
+  prompt's structural-COI and "original text intact" invariants. Revisit: never
+  without an invariant change.
 
 ## Open questions
 
@@ -307,40 +333,54 @@ None outstanding.
 
 ## Known debt and deviations
 
-- **Docker is still never available in this environment**, across five sprints.
+- **Docker is still never available in this environment**, across six sprints.
   `docker compose up`, the Testcontainers test path, and CI have never actually
-  run here. Everything that mattered (all 6 migrations, seed, all 12 endpoints,
+  run here. Everything that mattered (all 6 migrations, seed, all 15 endpoints,
   the worker's full pipeline, the frontend flow) was verified via a scratch
   `embedded-postgres` outside the repo, torn down after. What's left: confirm CI
   goes green on GitHub's runners once something is pushed, and confirm
   `docker compose up` specifically.
 - **CI has never run.** Unchanged — nothing pushed since Sprint 2 added the
-  workflow. `apps/api`'s new `@fastify/multipart` dependency and the new
-  `test/evidence.integration.test.ts` are picked up by the root
+  workflow. The new `test/reviews.integration.test.ts` and the Sprint 5
+  `@fastify/multipart` dependency are picked up by the root
   `lint`/`typecheck`/`test` scripts, but the workflow file itself still hasn't
   been reviewed for whether it runs them.
+- **`GET /articles/{id}/verification` still unbuilt.** Now needs only Dispute
+  data + the trust-status computation (Evidence and Review both exist). Most of
+  `/verification-result` is real (headline, version history, Integrity Record,
+  Supporting Evidence, Reviewer Notes); the trust summary and publisher
+  credibility are still mock pending this endpoint.
+- **No reviewer-facing write UI**, and **`ReviewsDisputes.tsx` untouched.**
+  There is essentially no reviewer frontend to wire; a submission/retraction UI
+  would be new component structure. `ReviewsDisputes.tsx` renders reviews +
+  disputes together and waits on the Dispute slice. `ReviewerNotes`'s mock row
+  is retained only as the no-`articleId` fallback.
+- **Conflict of interest is current-membership-only.** A reviewer's declared
+  past employer (`reviewers.affiliation`) does not block them. Per the Sprint 1
+  decision; revisit only if ex-employer COI becomes a requirement.
+- **The `review:create` denial message names the COI rule** ("approved reviewer
+  with no affiliation"), revealing the rule exists though never the caller's own
+  status. If even the rule's existence must be opaque, return a bare 403/404.
+- **`createAuthorization` builds a `reviewersRepo` in three routes that never
+  use a review action** (`articles`, `publisherArticles`, `evidence`). A
+  zero-cost factory call; the optional-parameter alternative was worse.
 - **Evidence hashes are not anchored.** Sprint 5 hashes and stores evidence
   bytes but does not feed those hashes into the Merkle tree — the worker batches
-  version content hashes only. The build prompt's "evidence files are hashed
-  **and anchored** like content" is half-met. Repay when the anchoring model is
-  next opened.
+  version content hashes only. Repay when the anchoring model is next opened.
 - **No real `ObjectStore`**, and **no endpoint to read a stored evidence blob**.
-  In-memory fake only; blobs don't survive an API restart; the verification
-  page's "View File" button is inert. A blob-serving endpoint is its own slice
-  (range requests, content-type, draft-evidence auth posture) and isn't in
-  `openapi.json`.
+  In-memory fake only; blobs don't survive an API restart; "View File" on the
+  verification page is inert.
 - **No real `SourceArchiver`.** `createFakeSourceArchiver` does not touch the
   network. Repay with the Phase 5 threat pass.
 - **Frontend evidence write path unwired.** `MediaEvidenceUpload.tsx` keeps
   files in local state and sends nothing; wiring needs a two-phase publish flow
-  (a component restructure, deferred). Its mock `UploadedFile` state and
-  `EvidenceSection`'s fallback mock array both still exist.
+  (a component restructure, deferred).
 - **`apps/api/src/repositories/articles.repository.ts` cursor pagination keys on
   a millisecond-truncated `created_at` ISO string** (`listPublishedVersions`,
   `listForPublisher`) and can re-serve or skip a row sharing a millisecond with
-  the page boundary. Pre-existing; Sprint 5's evidence list dodged it by keying
-  on `id`. Repay by moving those cursors to an `id`-keyset or a full-precision
-  `(created_at, id)` composite when next touched.
+  the page boundary. Pre-existing; the evidence and review lists dodge it by
+  keying on `id`. Repay by moving those cursors to an `id`-keyset or a
+  full-precision `(created_at, id)` composite when next touched.
 - **`apps/api`'s error handler maps only `AppError` / `ZodError` / Fastify
   schema `validation` to the error envelope.** A `415` (body with no
   `Content-Type`) or a `413` (`@fastify/multipart` `fileSize` limit) becomes a
@@ -350,11 +390,6 @@ None outstanding.
   deploying to a real chain.
 - **No admin re-queue for `anchor_failed`.** Terminal since Sprint 4. A version
   stuck there needs a future endpoint; today only a manual DB update resets it.
-- **`GET /articles/{id}/verification` still unbuilt.** Now needs only Review and
-  Dispute data (Evidence exists as of Sprint 5). Most of `/verification-result`
-  is still mock because of this — the Integrity Record and the Supporting
-  Evidence panel are real, the trust summary / credibility / reviewer notes are
-  not.
 - **`RegisterForm.tsx` still unwired.** Needs local-account provisioning plus
   `POST /publishers` and `POST /reviewers/apply` handlers (in `openapi.json`,
   no routes). Approach (Clerk headless hooks) confirmed; backend not built.
@@ -378,13 +413,11 @@ None outstanding.
 - **`/simple-login` and `/reader-portal` still exist in `apps/web`**, dead since
   Sprint 1. Still deferred.
 - **Fixed but worth tracking:** Sprint 3's append-only trigger silently
-  discarding every write, and `apps/api` having no CORS — both fixed in Sprint 3,
-  both only catchable from a real browser. Sprint 4's "crash between submit and
-  confirm" wedge — fixed, only catchable by a test that models a provider
-  restart. Sprint 5's millisecond-truncated evidence cursor — fixed, only
-  catchable by appending three rows inside one millisecond. Automated tests
-  alone are not sufficient proof a sprint is done, but a test that models the
-  ugly timing is what caught this one.
+  discarding every write, and `apps/api` having no CORS — both fixed in Sprint 3.
+  Sprint 4's "crash between submit and confirm" wedge — fixed. Sprint 5's
+  millisecond-truncated evidence cursor — fixed, and the same keying used for
+  reviews in Sprint 6. Automated tests alone are not sufficient proof a sprint
+  is done, but a test that models the ugly timing is what caught the cursor bug.
 
 ## How to run
 
@@ -398,7 +431,7 @@ pnpm lint                                      # same four — 0 errors/warnings
 pnpm --filter @sourceit/shared db:migrate      # applies all 6 migrations for real — verified
 pnpm --filter @sourceit/shared seed            # verified against a real database
 pnpm --filter @sourceit/anchoring test         # 33/33 — verified
-TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 38/38 — verified (25 prior + 13 evidence)
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 56/56 — verified (38 prior + 18 review)
 TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run                        # 7/7 — verified
 pnpm --filter @sourceit/shared openapi:generate && pnpm --filter @sourceit/shared client:generate  # regenerated, not hand-edited
 pnpm dev                                        # runs apps/api + apps/worker in parallel; both need ../../.env
