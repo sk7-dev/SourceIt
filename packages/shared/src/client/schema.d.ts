@@ -1330,6 +1330,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description No such published version (unknown, or still a draft) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1360,6 +1369,15 @@ export interface paths {
                 };
                 /** @description Reviewer is affiliated with this publisher, or not an approved reviewer */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such published version (unknown, or still a draft) */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1456,8 +1474,35 @@ export interface paths {
                         "application/json": components["schemas"]["Dispute"];
                     };
                 };
+                /** @description correctionVersionId is not a published version of the disputed article */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description Not a member of the disputed publisher */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such dispute */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Dispute is already closed (withdrawn or resolved) */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1507,8 +1552,26 @@ export interface paths {
                         "application/json": components["schemas"]["Dispute"];
                     };
                 };
-                /** @description Not the filer and not an admin */
+                /** @description Not the filer (withdraw), or not the filer and not an admin (resolve) */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such dispute */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Dispute is already closed */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
