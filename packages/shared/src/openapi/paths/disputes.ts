@@ -19,6 +19,7 @@ registry.registerPath({
   request: { params: versionIdParam, query: paginationQuerySchema },
   responses: {
     200: { description: "OK", content: { "application/json": { schema: paginatedResponseSchema(disputeSchema) } } },
+    404: { description: "No such published version (unknown, or still a draft)", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -35,6 +36,7 @@ registry.registerPath({
   responses: {
     201: { description: "Created", content: { "application/json": { schema: disputeSchema } } },
     403: { description: "Reviewer is affiliated with this publisher, or not an approved reviewer", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such published version (unknown, or still a draft)", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -63,7 +65,10 @@ registry.registerPath({
   },
   responses: {
     201: { description: "Event appended", content: { "application/json": { schema: disputeSchema } } },
+    400: { description: "correctionVersionId is not a published version of the disputed article", content: { "application/json": { schema: errorEnvelopeSchema } } },
     403: { description: "Not a member of the disputed publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such dispute", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    409: { description: "Dispute is already closed (withdrawn or resolved)", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -80,6 +85,8 @@ registry.registerPath({
   },
   responses: {
     201: { description: "Event appended", content: { "application/json": { schema: disputeSchema } } },
-    403: { description: "Not the filer and not an admin", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    403: { description: "Not the filer (withdraw), or not the filer and not an admin (resolve)", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such dispute", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    409: { description: "Dispute is already closed", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
