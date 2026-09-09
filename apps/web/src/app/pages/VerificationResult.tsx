@@ -17,15 +17,16 @@ import type { components } from "@sourceit/shared/client";
 type ArticleVersion = components["schemas"]["ArticleVersion"];
 type AnchorRecord = components["schemas"]["AnchorRecord"];
 type Evidence = components["schemas"]["Evidence"];
+type Review = components["schemas"]["Review"];
 
 // Wired for the sub-parts the backend can back so far: the article itself and
 // its public version history (GET /articles/{id}, GET /articles/{id}/versions),
-// the current version's anchor state (GET /versions/{id}/anchor), and its
-// evidence list (GET /versions/{id}/evidence). TrustSummaryCard,
-// PublisherCredibility, and ReviewerNotes still need the composed
-// GET /articles/{id}/verification endpoint (Review + Dispute data), which
-// doesn't exist yet — they stay on mock data whether or not an articleId is
-// present.
+// the current version's anchor state (GET /versions/{id}/anchor), its evidence
+// list (GET /versions/{id}/evidence), and its reviewer notes
+// (GET /versions/{id}/reviews). TrustSummaryCard and PublisherCredibility still
+// need the composed GET /articles/{id}/verification endpoint (Dispute data +
+// the trust computation), which doesn't exist yet — they stay on mock data
+// whether or not an articleId is present.
 export default function VerificationResult() {
   const navigate = useNavigate();
   const { articleId } = useParams();
@@ -34,6 +35,7 @@ export default function VerificationResult() {
   const [versions, setVersions] = useState<ArticleVersion[] | null>(null);
   const [anchor, setAnchor] = useState<AnchorRecord | null>(null);
   const [evidence, setEvidence] = useState<Evidence[] | null>(null);
+  const [reviews, setReviews] = useState<Review[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export default function VerificationResult() {
     setVersions(null);
     setAnchor(null);
     setEvidence(null);
+    setReviews(null);
 
     publicApiClient
       .GET("/articles/{articleId}", { params: { path: { articleId } } })
@@ -67,6 +70,11 @@ export default function VerificationResult() {
             .GET("/versions/{versionId}/evidence", { params: { path: { versionId: currentVersionId } } })
             .then(({ data: evidenceData }) => {
               if (evidenceData) setEvidence(evidenceData.items);
+            });
+          publicApiClient
+            .GET("/versions/{versionId}/reviews", { params: { path: { versionId: currentVersionId } } })
+            .then(({ data: reviewsData }) => {
+              if (reviewsData) setReviews(reviewsData.items);
             });
         }
       });
@@ -166,7 +174,7 @@ export default function VerificationResult() {
               <ComparisonSection />
 
               {/* Reviewer Notes */}
-              <ReviewerNotes />
+              <ReviewerNotes reviews={articleId ? reviews : null} />
 
               {/* Blockchain Integrity Record */}
               <IntegrityRecord
