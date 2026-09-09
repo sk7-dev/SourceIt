@@ -1,26 +1,28 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 3  ·  **Current phase:** Phase 3 (Article vertical slice) — complete, verified live end-to-end in a real browser
+**Last updated:** end of Sprint 4  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring slice complete, verified against a real Postgres
 
 ## Resume here
 
-The Article vertical slice — backend **and** frontend — is done and was
-demonstrated live: real Clerk login (including a second-factor step Clerk's
-own instance required), a real article published through the real
-`PublishArticlePanel` UI, and that article's real headline and version history
-rendering on its real public `/verification-result/:articleId` page — all
-against a real (temporary) Postgres. See
-[SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) Section 7 for the full
-walkthrough. Two real bugs were only caught by that live run: the Sprint 1
-append-only trigger was silently discarding every write (Section 5), and
-`apps/api` had no CORS support at all, so every authenticated browser request
-was silently blocked by a failed preflight — invisible to `curl` and to the
-in-process integration tests, only visible from an actual browser. Both fixed.
+The Anchoring slice is done. A submitted version's content hash is now batched
+into a Merkle tree by a new durable worker (`apps/worker`), the root is anchored
+through a pluggable `AnchorProvider` (in-memory fake only this sprint), and
+`GET /versions/{versionId}/anchor` returns the version's explicit anchor state
+plus — once anchored — an inclusion proof that verifies **offline** against the
+chain with no SourceIt database access. The exact Merkle/proof procedure is
+frozen in [docs/ANCHORING.md](ANCHORING.md), companion to
+[docs/CANONICALIZATION.md](CANONICALIZATION.md). The worker is idempotent and
+crash-safe (proved by tests: kill it anywhere, no record lost or anchored
+twice); a batch whose chain submission keeps failing retries with backoff and,
+after 5 attempts, goes terminal `anchor_failed`, surfaced to readers like any
+other state. The frontend Integrity Record on `/verification-result/:articleId`
+now shows the real anchor state instead of a hardcoded "verified." See
+[SPRINT_4_REPORT.md](sprints/SPRINT_4_REPORT.md).
 
-Still mock, deliberately: `RegisterForm` (needs new account-provisioning
-endpoints), everything on `/verification-result` except headline/version
-history (needs Evidence/Review/Dispute data), and the search/scan entry points
-(no backend search endpoint exists). See SPRINT_3_REPORT.md Section 8 for the
-full list.
+Still mock / unbuilt, deliberately: no real chain provider (fake only, by
+decision); no admin re-queue for `anchor_failed` (terminal this sprint);
+`GET /articles/{id}/verification` and everything on `/verification-result`
+except headline / version history / Integrity Record (needs Evidence, Review,
+Dispute); account provisioning / `RegisterForm`; any backend search.
 
 ## Sprint ledger
 
@@ -30,11 +32,12 @@ full list.
 | 1 | Full DB schema, Zod contracts, generated openapi.json, seed script | Complete with carryover | [SPRINT_1_REPORT.md](sprints/SPRINT_1_REPORT.md) |
 | 2 | apps/api skeleton: auth, error handling, logging, config, health, Docker Compose, CI, GET /me | Complete with carryover | [SPRINT_2_REPORT.md](sprints/SPRINT_2_REPORT.md) |
 | 3 | Article vertical slice: full backend CRUD, packages/anchoring, generated client — verified live | Complete with carryover | [SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) |
+| 4 | Anchoring slice: Merkle tree + proof + AnchorProvider, durable crash-safe worker, GET /versions/{id}/anchor, frontend anchor state | Complete with carryover | [SPRINT_4_REPORT.md](sprints/SPRINT_4_REPORT.md) |
 
 ## Current domain model
 
-Supersedes `docs/DOMAIN.md` where they disagree (Sprint 0's model was frontend-only
-inference; this is the actual schema in `packages/shared/src/db/schema/`). 18 tables:
+Supersedes `docs/DOMAIN.md` where they disagree. 18 tables (unchanged since
+Sprint 1); Sprint 4 only added columns to `anchor_batches`.
 
 ```
 Account ──has role──> reader | publisher | reviewer | admin
@@ -50,7 +53,9 @@ Article   (1) ──has──> (N) ArticleVersion   [append-only once non-draft,
                                               via previousVersionId/previousHash]
 ArticleVersion (1) ──has──> (N) Evidence          [binds to version, not article]
 ArticleVersion (1) ──has──> (1) AnchorRecord      [pending/anchored/anchor_failed,
-                                                    always present once submitted]
+                                                    always present once submitted;
+                                                    merkleProof + batch's root/tx
+                                                    filled by apps/worker on confirm]
 ArticleVersion (1) ──has──> (0..1) Redaction      [public tombstone, if redacted]
 ArticleVersion (1) ──has──> (N) Review            [append-only; retraction = a
                                                     ReviewRetraction row, never an
@@ -67,19 +72,20 @@ Account(reader) ──saves───> (N) SavedArticle ──> Article
 Account(reader) ──follows─> (N) PublisherFollow ──> Publisher
 
 Publisher (1) ──has──> (N) ActivityEvent     [audit-trail feed]
-AnchorBatch (1) ──has──> (N) AnchorRecord    [batched Merkle anchoring]
+AnchorBatch (1) ──has──> (N) AnchorRecord    [one Merkle batch = one chain tx;
+                                              mutable: pending→submitted→confirmed,
+                                              or failed after retry-with-backoff]
 ```
 
 TrustStatus (6 values: authentic, authentic_under_review, updated, disputed,
 publisher_unverified, notfound) is **not a table** — computed at read time by
-`GET /articles/{id}/verification`, per docs/DOMAIN.md #12.
+`GET /articles/{id}/verification`, per docs/DOMAIN.md #12. Still unbuilt.
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` defines the full contract (33 endpoints); 9 of
-them are implemented so far, all verified against a real database this sprint.
-`GET /healthz` and `GET /readyz` also exist but are intentionally not in
-`openapi.json` — ops endpoints, not product API surface.
+`packages/shared/openapi.json` defines the full contract (33 endpoints); 10 are
+implemented, all verified against a real database. `GET /healthz` / `GET /readyz`
+also exist but are intentionally not in `openapi.json`.
 
 | Method | Path | Auth | Sprint introduced |
 |---|---|---|---|
@@ -93,6 +99,7 @@ them are implemented so far, all verified against a real database this sprint.
 | DELETE | /articles/{articleId}/versions/{versionId} | Clerk bearer token | 3 |
 | POST | /articles/{articleId}/archive | Clerk bearer token | 3 |
 | GET | /publishers/{publisherId}/articles | Clerk bearer token | 3 |
+| GET | /versions/{versionId}/anchor | public | 4 |
 
 ## Decisions
 
@@ -114,7 +121,8 @@ them are implemented so far, all verified against a real database this sprint.
   pending/anchored/anchor_failed badge (`anchor_records.status`), never an
   optimistic "verified." Why: the frontend never rendered pending/failed and the
   build prompt calls hiding this a bug, not a rendering choice. Revisit: never —
-  this is a hard invariant, not a preference.
+  this is a hard invariant, not a preference. **Enforced in Sprint 4:
+  `IntegrityRecord` no longer hardcodes a status.**
 - 2026-08-26 — Dispute is a separate entity (`disputes` + append-only
   `dispute_events`), not `Review{type:"dispute"}`, and a publisher may respond with
   free text and/or a correction version but never resolve, withdraw, or hide a
@@ -182,69 +190,69 @@ them are implemented so far, all verified against a real database this sprint.
 - 2026-08-26 — `/simple-login` and `/reader-portal` are confirmed dead and slated
   for deletion; the rest of the sidebar's unwired local state is left alone
   (single-scrolling-page layout is intentional, not a bug). Why: user confirmed
-  both routes are unreachable/duplicate. **Not yet executed** — deferred to
-  Sprint 3+ when the frontend is wired to the real client, to keep Sprint 1 scoped
-  to the contract. See SPRINT_1_REPORT.md Section 8.
+  both routes are unreachable/duplicate. **Not yet executed.**
 - 2026-08-26 — `/article-edit-history`'s full version-history data gets a second,
   public, unauthenticated route (`GET /articles/{id}/versions`,
   `GET /articles/{id}/versions/{versionId}`) alongside the existing authenticated
   publisher route. Why: build prompt requires version history to be public like
   verification itself; user confirmed both routes should exist rather than
   replacing the authenticated one. Revisit: never without a requirement change.
-- 2026-08-26 — Schema entity names (Article, ArticleVersion, Publisher, Reviewer,
-  Dispute, DisputeEvent, Redaction, AnchorRecord, Evidence, etc.) confirmed at the
-  Sprint 1 stop point as matching the business's own language — no renames.
+- 2026-08-26 — Schema entity names confirmed at the Sprint 1 stop point as
+  matching the business's own language — no renames.
 - 2026-08-26 — Session auth is a Clerk-issued JWT passed as an `Authorization:
   Bearer <token>` header, verified server-side with `@clerk/backend`'s
-  `verifyToken`. Why: the concrete mechanism Sprint 1's `security: authed` tag
-  needed; Clerk's own recommended server-side verification path, no custom
-  session/cookie handling. Revisit: never without dropping Clerk itself.
+  `verifyToken`. Revisit: never without dropping Clerk itself.
 - 2026-08-26 — `apps/api`'s Fastify instance takes an injectable
-  `SessionVerifier` (`app.decorate("verifySession", ...)`); production always
-  uses real Clerk verification, but the integration test suite substitutes a
-  fixed token→clerkUserId mapping instead of requiring a live Clerk project to
-  run. The database is never substituted this way — Testcontainers Postgres,
-  real migrations, always. Why: a live Clerk project wasn't available this
-  sprint, and hand-rolling fake JWTs that pass real Clerk verification isn't
-  possible without Clerk's own signing keys; injecting at the verification
-  boundary was the option that still exercises everything else (routing,
-  errors, the database) for real. Revisit: add a second, smaller test suite
-  against a real Clerk test project once one exists, rather than trusting the
-  injected path alone forever.
-
+  `SessionVerifier`; production uses real Clerk verification, tests substitute a
+  fixed token→clerkUserId mapping. The database is never substituted this way —
+  Testcontainers Postgres, real migrations, always.
 - 2026-08-27 — `packages/anchoring`'s canonicalization/hashing spec is frozen
-  as of Sprint 3 (`docs/CANONICALIZATION.md`): SHA-256 over a deterministic,
-  recursively-key-sorted JSON serialization of exactly 8 version-content
-  fields, computed via Web Crypto (`crypto.subtle`) rather than `node:crypto`
-  so the identical code runs in a browser. Why: the build prompt requires this
-  frozen before Phase 1, and it slipped to Sprint 3 because nothing needed a
-  real hash before then — flagged rather than pretended otherwise. Revisit:
-  never without a new spec version, since any change invalidates every
-  previously-computed hash.
-- 2026-08-27 — Session verification is injected at the Fastify-instance level
-  (`SessionVerifier`) and the article integration tests use a fixed
-  token→clerkUserId mapping rather than a live Clerk project — carried over
-  from Sprint 2's same decision, now exercised by 18 more tests.
-- 2026-08-27 — **Confirmed at the Sprint 3 mid-sprint stop point:** Clerk's
-  auth UI is wired via headless hooks into the existing custom
-  `LoginForm`/`RegisterForm` (no visual change), and a reader reaches a
-  specific article via a route param (`/verification-result/:articleId`). Both
-  implemented and demonstrated live this sprint. `RegisterForm` itself is
-  still unwired — the confirmed *approach* (headless hooks) applies once its
-  supporting backend endpoints exist (see Known debt).
+  (`docs/CANONICALIZATION.md`): SHA-256 over a deterministic, recursively
+  key-sorted JSON serialization of exactly 8 version-content fields, via Web
+  Crypto. Revisit: never without a new spec version.
 - 2026-08-27 — `apps/api` gets CORS via `@fastify/cors`, origin controlled by
-  a new `CORS_ORIGIN` env var (comma-separated allowlist outside development;
-  any origin allowed in development). Why: found live — every authenticated
-  browser request's preflight `OPTIONS` 404'd with no CORS plugin registered,
-  invisible to curl/in-process tests. Revisit: set `CORS_ORIGIN` explicitly
-  before any non-development deployment; the development-allows-any-origin
-  default must never apply outside development.
-- 2026-08-27 — `apps/web`'s auth UI additionally handles Clerk's
-  `needs_second_factor` sign-in status (an email-code step) inline in
-  `LoginForm`, discovered live when this Clerk project's own security policy
-  required it for a password sign-in. Why: the alternative was leaving a
-  real, reachable Clerk state with no UI to complete it. Revisit: never,
-  unless Clerk's second-factor strategy set changes.
+  `CORS_ORIGIN` (comma-separated allowlist outside development; any origin in
+  development). Revisit: set `CORS_ORIGIN` explicitly before any non-development
+  deployment.
+- 2026-08-27 — `apps/web`'s auth UI handles Clerk's `needs_second_factor`
+  sign-in status inline in `LoginForm`, found live. Revisit: never, unless
+  Clerk's second-factor strategy set changes.
+- 2026-09-08 — Merkle anchoring spec frozen (`docs/ANCHORING.md`): leaf =
+  `SHA-256(0x00 ‖ contentHashBytes)`, node = `SHA-256(0x01 ‖ left ‖ right)`
+  (RFC-6962-style domain separation), lonely node promoted unchanged (not
+  duplicated), inclusion-proof entries `{hash, side}` ordered leaf→root, leaf
+  order `(created_at, article_version_id)`. Why: the build prompt requires the
+  verification procedure be a public frozen spec; confirmed shape with the user.
+  Revisit: never without a new spec version — any change invalidates every root
+  and proof already computed.
+- 2026-09-08 — Anchoring runs in a **separate `apps/worker` process**, not
+  in-process in `apps/api`. Why: matches the build prompt's "durable job runner"
+  and the Railway monolith+worker+Postgres deploy shape; keeps the public read
+  path's uptime independent of the worker. Confirmed with the user. Revisit: if
+  operational simplicity of one process ever outweighs the isolation.
+- 2026-09-08 — A batch whose chain submit/confirm keeps failing retries with
+  exponential backoff (`min(2^attempts, 60)`s) and, after `ANCHOR_MAX_ATTEMPTS`
+  (default 5), is set `failed` with its records set **terminal `anchor_failed`**.
+  Recovering a stuck `anchor_failed` version needs a future admin re-queue
+  endpoint (not built). Why: confirmed with the user over retry-forever and
+  fail-immediately. Revisit: when the re-queue path is actually needed.
+- 2026-09-08 — Sprint 4 ships only `createFakeAnchorProvider` (in-memory,
+  idempotent on root). No real L2 chain integration. Why: confirmed with the
+  user; enough to exercise the full worker/proof/state machine, and a real
+  provider plugs in at the `AnchorProvider` interface with no worker or schema
+  change. Revisit: when a real chain is actually being deployed to.
+- 2026-09-08 — `anchorRecordSchema` (Sprint 1) amended on implementation:
+  `merkleProof` is `{hash, side}[]` not `string[]`; the leaf field is renamed
+  `contentHash` (the value a verifier hashes; the Merkle leaf is the
+  domain-separated derivation); `merkleRoot` + `chainTxHash` added from the
+  batch. Documented inline. Why: the Sprint 1 shape couldn't express a real
+  inclusion proof. Revisit: never without a contract change.
+- 2026-09-08 — `confirmBatch` falls back to `provider.submit()` (idempotent on
+  root) when `provider.getReceipt()` throws, so a `submitted` batch is always
+  drivable to completion from the persisted root alone. Why: a failing test
+  showed a batch could wedge after a restart that lost provider state. Revisit:
+  if a real provider's `submit` is ever not safe to call repeatedly (the
+  interface contract forbids that).
 
 ## Open questions
 
@@ -252,87 +260,77 @@ None outstanding.
 
 ## Known debt and deviations
 
-- **Docker itself is still never available in this environment**, across
-  three sprints. `docker compose up` and the Testcontainers-based test runs
-  remain unverified *by this environment specifically* — but everything that
-  actually mattered (migrations, the seed script, the append-only trigger, all
-  9 implemented endpoints, and now the full frontend flow) was verified for
-  real this sprint via `embedded-postgres` (a scratch, non-project dependency)
-  and a real, temporary Clerk user, both torn down afterward. What's left:
-  confirm CI actually goes green on GitHub's Docker-equipped runners once
-  something is pushed, and confirm `docker compose up` specifically works —
-  nobody has typed that exact command against this repo yet.
-- **CI has never run.** Unchanged — the workflow file exists and was reviewed,
-  nothing has been pushed since Sprint 2 added it.
-- **`RegisterForm.tsx` still unwired.** Creating a brand-new account through
-  the UI needs a local-account-provisioning endpoint that doesn't exist (today
-  an `accounts` row only comes from the seed script or manual linking) plus
-  real handlers for `POST /publishers` and `POST /reviewers/apply` (both are
-  in `openapi.json` from Sprint 1, neither has an `apps/api` route). The
-  *approach* for wiring it (Clerk headless hooks, matching `LoginForm`) is
-  confirmed; the backend it needs is not built.
-- **`GET /articles/{id}/verification` (the composed trust-status endpoint)
-  does not exist.** Correctly deferred — it needs Evidence, Review, and
-  Dispute data, none of which exist yet. Most of `/verification-result` still
-  shows mock data because of this, not because it wasn't wired.
+- **Docker is still never available in this environment**, across four sprints.
+  `docker compose up`, the Testcontainers test path, and CI have never actually
+  run here. Everything that mattered (all 6 migrations, seed, all 10 endpoints,
+  the worker's full pipeline, the frontend flow) was verified via a scratch
+  `embedded-postgres` outside the repo, torn down after. What's left: confirm CI
+  goes green on GitHub's runners once something is pushed, and confirm
+  `docker compose up` specifically.
+- **CI has never run.** Unchanged — nothing pushed since Sprint 2 added the
+  workflow. `apps/worker` was added to root `lint` / `typecheck` / `test` this
+  sprint but the workflow file itself was not reviewed for whether it picks that
+  up.
+- **No real `AnchorProvider`.** Fake only, by decision — see Decisions
+  2026-09-08. Repay when deploying to a real chain.
+- **No admin re-queue for `anchor_failed`.** Terminal in Sprint 4. A version
+  stuck there needs a future endpoint; today only a manual DB update resets it.
+- **`GET /articles/{id}/verification` still unbuilt.** Needs Evidence, Review,
+  Dispute. Most of `/verification-result` is still mock because of this — the
+  Integrity Record is now real, the trust summary / evidence / credibility /
+  reviewer notes are not.
+- **`RegisterForm.tsx` still unwired.** Needs local-account provisioning plus
+  `POST /publishers` and `POST /reviewers/apply` handlers (in `openapi.json`,
+  no routes). Approach (Clerk headless hooks) confirmed; backend not built.
 - **No backend search endpoint** — `VerificationHero`'s search/scan tabs,
-  `RecentlyVerified`, and `SavedArticles` still navigate to the param-less
-  mock verification route, since there's no way to look up an article by
-  text/URL/scan yet.
-- **`apps/web` has no `tsconfig.json`.** Pre-existing gap (Figma Make export),
-  not introduced this sprint, but more consequential now that real
-  application logic lives in these files — nothing typechecks them
-  automatically as part of `vite build`. Every file touched this sprint was
-  typechecked ad-hoc instead (explicit `tsc` flags standing in for a missing
-  config). Repay: add a real `tsconfig.json`, or keep doing ad-hoc checks
-  deliberately and say so.
-- **The `TEST_DATABASE_URL` test escape hatch is single-file-parallelism only**,
-  enforced by a code comment, not tooling. Using it for more than one test file
-  at a time without `--no-file-parallelism`-equivalent care will race.
-- **`/simple-login` and `/reader-portal` still exist in `apps/web`**, despite
-  being confirmed dead since Sprint 1. Still deferred — nothing this sprint
-  touched them.
-- **Fixed but worth tracking (Sprint 1):** `apps/web/package.json` had 54
-  malformed duplicate dependency keys (Figma Make export artifact) that blocked
-  `pnpm install`; removed. 41 files under `apps/web/src/app/components/ui/` had
-  version-pinned import specifiers that blocked `vite build`; stripped
-  mechanically. Neither touched visual or behavioral code — see
-  SPRINT_1_REPORT.md Section 8.
-- **Fixed and important (Sprint 3):** the Sprint 1 append-only trigger was
-  silently discarding every write, not just the ones it meant to block, and
-  `apps/api` had no CORS support at all (every authenticated browser request
-  silently failed preflight) — see SPRINT_3_REPORT.md Sections 2 and 5. Both
-  fixed. Neither was catchable by typecheck, curl, or the in-process
-  integration test suite — only a real browser driving the real app surfaced
-  them. Worth remembering before declaring any future sprint done on the
-  strength of automated tests alone.
+  `RecentlyVerified`, `SavedArticles` still navigate to the param-less mock
+  verification route.
+- **`apps/web` has no `tsconfig.json`.** Pre-existing (Figma Make export).
+  `vite build` is its only standing check; files touched each sprint are
+  checked ad-hoc with explicit `tsc` flags, which surface only known
+  environmental gaps.
+- **`apps/worker` duplicates `apps/api`'s `startTestDb` helper and `db.ts` pool
+  setup** (~30 lines), by the same per-app-owns-its-data-access decision as
+  Sprint 3. Repay by extracting a test-support package only if a third app
+  needs it.
+- **`docs/ANCHORING.md`'s leaf-order rule is enforced by an `ORDER BY`, not a
+  constraint.** One code path builds trees; it is tested. A second path in a
+  different order would produce a different root.
+- **The `TEST_DATABASE_URL` escape hatch is single-file-parallelism only**
+  (`apps/api` needs `--no-file-parallelism`; `apps/worker`'s vitest config sets
+  `fileParallelism: false`). Enforced by config/comment, not tooling.
+- **`/simple-login` and `/reader-portal` still exist in `apps/web`**, dead since
+  Sprint 1. Still deferred.
+- **Fixed but worth tracking:** Sprint 3's append-only trigger silently
+  discarding every write, and `apps/api` having no CORS — both fixed in Sprint 3,
+  both only catchable from a real browser. Sprint 4's "crash between submit and
+  confirm" wedge — fixed, only catchable by a test that models a provider
+  restart. Automated tests alone are not sufficient proof a sprint is done.
 
 ## How to run
 
-Confirmed working this sprint (against a real Postgres, not Docker's — and,
-for the frontend, a real Chrome browser):
+Confirmed working this sprint (against a real Postgres via `embedded-postgres`,
+not Docker's; `apps/web` via `vite build`):
 
 ```
 pnpm install                                   # workspace install — verified
-pnpm typecheck                                 # apps/api + packages/shared + packages/anchoring — 0 errors
-pnpm lint                                      # same three — 0 errors/warnings
-pnpm --filter @sourceit/shared db:migrate      # applies all 5 migrations for real — verified
+pnpm typecheck                                 # apps/api + apps/worker + packages/shared + packages/anchoring — 0 errors
+pnpm lint                                      # same four — 0 errors/warnings
+pnpm --filter @sourceit/shared db:migrate      # applies all 6 migrations for real — verified
 pnpm --filter @sourceit/shared seed            # verified against a real database
-pnpm --filter @sourceit/anchoring test         # 13/13 — verified
-TEST_DATABASE_URL=<url> pnpm exec vitest run test/me.integration.test.ts        # 3/3 — verified
-TEST_DATABASE_URL=<url> pnpm exec vitest run test/articles.integration.test.ts  # 18/18 — verified
-pnpm --filter @sourceit/api dev                # needs .env (DATABASE_URL, CLERK_*, CORS_ORIGIN) — verified
-pnpm --filter @sourceit/web dev                # needs apps/web/.env.local (VITE_CLERK_PUBLISHABLE_KEY, VITE_API_BASE_URL) — verified
+pnpm --filter @sourceit/anchoring test         # 33/33 — verified
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 25/25 — verified
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run                        # 7/7 — verified
+pnpm --filter @sourceit/shared openapi:generate && pnpm --filter @sourceit/shared client:generate  # regenerated, not hand-edited
+pnpm dev                                        # runs apps/api + apps/worker in parallel; both need ../../.env
+pnpm --filter @sourceit/web dev                # needs apps/web/.env.local (VITE_CLERK_PUBLISHABLE_KEY, VITE_API_BASE_URL)
+pnpm --filter @sourceit/web build              # 2204 modules — verified
 ```
 
-(The two `TEST_DATABASE_URL` runs need `--no-file-parallelism`-equivalent care
-if run together — see Known debt above; run one file at a time as shown.)
-
-Live-verified in an actual browser this sprint (see SPRINT_3_REPORT.md
-Section 7 for the full walkthrough): real Clerk login with a second-factor
-step, publishing an article through the real UI, that article appearing in
-the real publisher article list, and its real headline/version history
-rendering on its public verification page.
+`.env` for `pnpm dev`: `DATABASE_URL`, `CLERK_SECRET_KEY`,
+`CLERK_PUBLISHABLE_KEY`, `CORS_ORIGIN` (api); the worker reads the same file and
+takes optional `ANCHOR_TICK_MS` / `ANCHOR_MAX_BATCH` / `ANCHOR_MAX_ATTEMPTS` /
+`FAKE_ANCHOR_CONFIRMATIONS`, all with defaults.
 
 Still not possible here: `docker compose up` specifically, or Testcontainers
-(both need Docker, unavailable in this environment).
+(both need Docker).
