@@ -42,6 +42,7 @@ const anchorStatusLabel: Record<string, string> = {
 function toRow(item: ArticleVersionSummary) {
   return {
     articleId: item.articleId,
+    versionId: item.id,
     title: item.headline || "(untitled draft)",
     category: item.category.charAt(0).toUpperCase() + item.category.slice(1),
     date: item.publishedAt ? new Date(item.publishedAt).toLocaleDateString() : "Not published",
@@ -178,7 +179,24 @@ export default function MyArticlesTable({ publisherId }: MyArticlesTableProps) {
                           <span>Version History</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onClick={() => toast.info("Fetching blockchain proof...")}>
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            const { data, error } = await api.GET("/versions/{versionId}/anchor", {
+                              params: { path: { versionId: article.versionId } },
+                            });
+                            if (error || !data) {
+                              toast.info("No blockchain proof yet — this version hasn't been submitted");
+                              return;
+                            }
+                            const summary =
+                              data.status === "anchored"
+                                ? `On-chain: root ${data.merkleRoot?.slice(0, 12)}… in tx ${data.chainTxHash?.slice(0, 12)}…`
+                                : data.status === "anchor_failed"
+                                  ? "Anchoring failed for this version"
+                                  : "Hash recorded — awaiting the next on-chain batch";
+                            toast.info(summary);
+                          }}
+                        >
                           <FileCheck className="w-4 h-4 text-purple-600" />
                           <span>View Blockchain Proof</span>
                         </DropdownMenuItem>

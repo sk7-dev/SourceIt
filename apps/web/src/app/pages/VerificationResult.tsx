@@ -15,6 +15,7 @@ import { publicApiClient } from "../lib/apiClient";
 import type { components } from "@sourceit/shared/client";
 
 type ArticleVersion = components["schemas"]["ArticleVersion"];
+type AnchorRecord = components["schemas"]["AnchorRecord"];
 
 // Only wired for the sub-parts the backend can actually back so far (the
 // article itself and its public version history — GET /articles/{id} and
@@ -30,12 +31,14 @@ export default function VerificationResult() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [versions, setVersions] = useState<ArticleVersion[] | null>(null);
+  const [anchor, setAnchor] = useState<AnchorRecord | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!articleId) return;
     setLoadError(null);
     setVersions(null);
+    setAnchor(null);
 
     publicApiClient
       .GET("/articles/{articleId}", { params: { path: { articleId } } })
@@ -48,7 +51,16 @@ export default function VerificationResult() {
     publicApiClient
       .GET("/articles/{articleId}/versions", { params: { path: { articleId } } })
       .then(({ data }) => {
-        if (data) setVersions(data.items);
+        if (!data) return;
+        setVersions(data.items);
+        const currentVersionId = data.items[0]?.id;
+        if (currentVersionId) {
+          publicApiClient
+            .GET("/versions/{versionId}/anchor", { params: { path: { versionId: currentVersionId } } })
+            .then(({ data: anchorData }) => {
+              if (anchorData) setAnchor(anchorData);
+            });
+        }
       });
   }, [articleId]);
 
@@ -149,7 +161,11 @@ export default function VerificationResult() {
               <ReviewerNotes />
 
               {/* Blockchain Integrity Record */}
-              <IntegrityRecord />
+              <IntegrityRecord
+                anchor={articleId ? anchor : null}
+                versionCount={versions?.length ?? 0}
+                previousHash={currentVersion?.previousHash ?? null}
+              />
             </>
           )}
         </main>
