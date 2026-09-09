@@ -1,28 +1,36 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 4  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring slice complete, verified against a real Postgres
+**Last updated:** end of Sprint 5  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring + Evidence slices complete, verified against a real Postgres
 
 ## Resume here
 
-The Anchoring slice is done. A submitted version's content hash is now batched
-into a Merkle tree by a new durable worker (`apps/worker`), the root is anchored
-through a pluggable `AnchorProvider` (in-memory fake only this sprint), and
-`GET /versions/{versionId}/anchor` returns the version's explicit anchor state
-plus — once anchored — an inclusion proof that verifies **offline** against the
-chain with no SourceIt database access. The exact Merkle/proof procedure is
-frozen in [docs/ANCHORING.md](ANCHORING.md), companion to
-[docs/CANONICALIZATION.md](CANONICALIZATION.md). The worker is idempotent and
-crash-safe (proved by tests: kill it anywhere, no record lost or anchored
-twice); a batch whose chain submission keeps failing retries with backoff and,
-after 5 attempts, goes terminal `anchor_failed`, surfaced to readers like any
-other state. The frontend Integrity Record on `/verification-result/:articleId`
-now shows the real anchor state instead of a hardcoded "verified." See
-[SPRINT_4_REPORT.md](sprints/SPRINT_4_REPORT.md).
+The Evidence slice is done. A publisher's member can attach evidence to a
+**draft** version via `POST /versions/{versionId}/evidence` (multipart) — a file,
+or for `tag=source` an external URL that is fetched and snapshotted at attach
+time; the bytes are SHA-256 hashed and stored content-addressed through a
+pluggable `ObjectStore` (in-memory fake only this sprint), and the version's
+evidence set freezes when the version leaves draft (append-only, DB trigger).
+`GET /versions/{versionId}/evidence` is public and cursor-paginated, and 404s
+for a draft or unknown version so nothing non-public is disclosed. The
+verification page's Supporting Evidence panel now renders that real list. No
+migration was needed — the `evidence` table and its append-only trigger have
+existed since Sprint 1. See [SPRINT_5_REPORT.md](sprints/SPRINT_5_REPORT.md).
 
-Still mock / unbuilt, deliberately: no real chain provider (fake only, by
-decision); no admin re-queue for `anchor_failed` (terminal this sprint);
-`GET /articles/{id}/verification` and everything on `/verification-result`
-except headline / version history / Integrity Record (needs Evidence, Review,
-Dispute); account provisioning / `RegisterForm`; any backend search.
+Still mock / unbuilt, deliberately, after Sprint 5:
+
+- **Evidence hashes are not anchored** — files are hashed and stored, but the
+  anchoring worker still Merkle-batches version content hashes only.
+- **No real object store** and **no blob-read endpoint** — stored evidence
+  bytes live in the API process and can't be fetched back; "View File" on the
+  verification page is still inert.
+- **No real source archiver** — `createFakeSourceArchiver` only, no network; a
+  guarded server-side fetch is a Phase 5 concern.
+- **Frontend evidence write path unwired** — `MediaEvidenceUpload.tsx` still
+  holds files in local state and sends nothing; wiring it needs a two-phase
+  publish flow (deemed a component restructure, deferred).
+- Carried from Sprint 4: no real chain `AnchorProvider` (fake only); no admin
+  re-queue for `anchor_failed`; `GET /articles/{id}/verification` still unbuilt
+  (needs Review + Dispute now that Evidence exists); account provisioning /
+  `RegisterForm`; any backend search.
 
 ## Sprint ledger
 
@@ -33,11 +41,14 @@ Dispute); account provisioning / `RegisterForm`; any backend search.
 | 2 | apps/api skeleton: auth, error handling, logging, config, health, Docker Compose, CI, GET /me | Complete with carryover | [SPRINT_2_REPORT.md](sprints/SPRINT_2_REPORT.md) |
 | 3 | Article vertical slice: full backend CRUD, packages/anchoring, generated client — verified live | Complete with carryover | [SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) |
 | 4 | Anchoring slice: Merkle tree + proof + AnchorProvider, durable crash-safe worker, GET /versions/{id}/anchor, frontend anchor state | Complete with carryover | [SPRINT_4_REPORT.md](sprints/SPRINT_4_REPORT.md) |
+| 5 | Evidence slice: multipart POST + public GET /versions/{id}/evidence, content-addressed ObjectStore + SourceArchiver seams (fakes), append-only, frontend evidence list | Complete with carryover | [SPRINT_5_REPORT.md](sprints/SPRINT_5_REPORT.md) |
 
 ## Current domain model
 
-Supersedes `docs/DOMAIN.md` where they disagree. 18 tables (unchanged since
-Sprint 1); Sprint 4 only added columns to `anchor_batches`.
+Supersedes `docs/DOMAIN.md` where they disagree. 18 tables, **unchanged since
+Sprint 1** (Sprint 4 added columns to `anchor_batches`; Sprint 5 added no schema
+at all). Sprint 5 is the first slice to build against an entity whose table and
+constraints already fit with no migration.
 
 ```
 Account ──has role──> reader | publisher | reviewer | admin
@@ -51,7 +62,12 @@ Publisher (1) ──publishes──> (N) Article
 
 Article   (1) ──has──> (N) ArticleVersion   [append-only once non-draft, hash-chained
                                               via previousVersionId/previousHash]
-ArticleVersion (1) ──has──> (N) Evidence          [binds to version, not article]
+ArticleVersion (1) ──has──> (N) Evidence          [binds to version, not article;
+                                                    attached only while the version is
+                                                    a draft, then frozen with it;
+                                                    bytes SHA-256'd + content-addressed;
+                                                    tag=source is fetched+snapshotted
+                                                    (isArchivedSnapshot)]
 ArticleVersion (1) ──has──> (1) AnchorRecord      [pending/anchored/anchor_failed,
                                                     always present once submitted;
                                                     merkleProof + batch's root/tx
@@ -83,7 +99,7 @@ publisher_unverified, notfound) is **not a table** — computed at read time by
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` defines the full contract (33 endpoints); 10 are
+`packages/shared/openapi.json` defines the full contract (33 endpoints); 12 are
 implemented, all verified against a real database. `GET /healthz` / `GET /readyz`
 also exist but are intentionally not in `openapi.json`.
 
@@ -100,6 +116,8 @@ also exist but are intentionally not in `openapi.json`.
 | POST | /articles/{articleId}/archive | Clerk bearer token | 3 |
 | GET | /publishers/{publisherId}/articles | Clerk bearer token | 3 |
 | GET | /versions/{versionId}/anchor | public | 4 |
+| GET | /versions/{versionId}/evidence | public | 5 |
+| POST | /versions/{versionId}/evidence | Clerk bearer token | 5 |
 
 ## Decisions
 
@@ -167,10 +185,11 @@ also exist but are intentionally not in `openapi.json`.
   trust postures the 4-value set can't express. Revisit: never without a design
   change.
 - 2026-08-26 — Evidence with `tag=source` is fetched and hashed (archived) at
-  submission time, not merely linked (`evidence.isArchivedSnapshot`,
+  attach time, not merely linked (`evidence.isArchivedSnapshot`,
   `evidence.sourceUrl`). Why: verification must not silently degrade when a
   third-party URL rots. Revisit: if archival storage cost becomes material at
-  scale, which is not expected at year-one volume.
+  scale, which is not expected at year-one volume. **Implemented in Sprint 5
+  behind a `SourceArchiver` seam; only the in-memory fake ships.**
 - 2026-08-26 — Reviewer approval has a real admin queue and `admin` role
   (`reviewers.approvalStatus`, `PATCH`-equivalent decision endpoint), not manual
   database edits. Why: user explicitly chose to build this over the
@@ -253,6 +272,34 @@ also exist but are intentionally not in `openapi.json`.
   showed a batch could wedge after a restart that lost provider state. Revisit:
   if a real provider's `submit` is ever not safe to call repeatedly (the
   interface contract forbids that).
+- 2026-09-09 — `POST /versions/{versionId}/evidence` is `multipart/form-data`,
+  amending the Sprint 1 `application/json` shape on implementation.
+  `uploadEvidenceRequestSchema` is the non-file field set; a new
+  `UploadEvidenceMultipart` OpenAPI schema adds the binary `file` part (absent
+  for `tag=source`). `openapi.json` + client regenerated. Why: a real file
+  upload can't ride in a JSON body; confirmed with the user. Revisit: never
+  without a contract change.
+- 2026-09-09 — Object storage and source-URL archival sit behind injectable
+  `ObjectStore` / `SourceArchiver` seams in `apps/api` (defaulted in
+  `buildApp`), with only in-memory/deterministic fakes shipped this sprint —
+  same call as `AnchorProvider`. A real content-addressed store and a guarded
+  server-side fetch (SSRF-listing, redirect/body caps, timeouts) plug in with no
+  service or route change. Why: confirmed with the user; the real fetch is a
+  Phase 5 threat-pass concern. Revisit: when deploying somewhere real.
+- 2026-09-09 — Evidence attaches only while the owning version is a draft; once
+  the version leaves draft the evidence set is frozen with it (409 on a later
+  attach), and `evidence` rows are append-only (`evidence_append_only` trigger,
+  since Sprint 1). Why: the build prompt's "evidence binds to a version, not an
+  asset" reads most cleanly as "binds at draft time, immutable thereafter";
+  matches the frontend, where evidence is only ever uploaded on the publish
+  form. Revisit: never without a change to what append-only protects.
+- 2026-09-09 — `GET /versions/{versionId}/evidence` keyset-paginates on
+  `evidence.id`, not `created_at`. Why: Postgres `timestamptz` is microsecond,
+  a JS `Date`/ISO string is millisecond, so a `created_at` cursor re-serves
+  same-millisecond rows (a real test caught this). Order within a version's
+  evidence is a flat list, so `id` order costs nothing. Revisit: if evidence
+  ever needs a guaranteed chronological read, use a full-precision composite
+  cursor.
 
 ## Open questions
 
@@ -260,25 +307,54 @@ None outstanding.
 
 ## Known debt and deviations
 
-- **Docker is still never available in this environment**, across four sprints.
+- **Docker is still never available in this environment**, across five sprints.
   `docker compose up`, the Testcontainers test path, and CI have never actually
-  run here. Everything that mattered (all 6 migrations, seed, all 10 endpoints,
+  run here. Everything that mattered (all 6 migrations, seed, all 12 endpoints,
   the worker's full pipeline, the frontend flow) was verified via a scratch
   `embedded-postgres` outside the repo, torn down after. What's left: confirm CI
   goes green on GitHub's runners once something is pushed, and confirm
   `docker compose up` specifically.
 - **CI has never run.** Unchanged — nothing pushed since Sprint 2 added the
-  workflow. `apps/worker` was added to root `lint` / `typecheck` / `test` this
-  sprint but the workflow file itself was not reviewed for whether it picks that
-  up.
-- **No real `AnchorProvider`.** Fake only, by decision — see Decisions
-  2026-09-08. Repay when deploying to a real chain.
-- **No admin re-queue for `anchor_failed`.** Terminal in Sprint 4. A version
+  workflow. `apps/api`'s new `@fastify/multipart` dependency and the new
+  `test/evidence.integration.test.ts` are picked up by the root
+  `lint`/`typecheck`/`test` scripts, but the workflow file itself still hasn't
+  been reviewed for whether it runs them.
+- **Evidence hashes are not anchored.** Sprint 5 hashes and stores evidence
+  bytes but does not feed those hashes into the Merkle tree — the worker batches
+  version content hashes only. The build prompt's "evidence files are hashed
+  **and anchored** like content" is half-met. Repay when the anchoring model is
+  next opened.
+- **No real `ObjectStore`**, and **no endpoint to read a stored evidence blob**.
+  In-memory fake only; blobs don't survive an API restart; the verification
+  page's "View File" button is inert. A blob-serving endpoint is its own slice
+  (range requests, content-type, draft-evidence auth posture) and isn't in
+  `openapi.json`.
+- **No real `SourceArchiver`.** `createFakeSourceArchiver` does not touch the
+  network. Repay with the Phase 5 threat pass.
+- **Frontend evidence write path unwired.** `MediaEvidenceUpload.tsx` keeps
+  files in local state and sends nothing; wiring needs a two-phase publish flow
+  (a component restructure, deferred). Its mock `UploadedFile` state and
+  `EvidenceSection`'s fallback mock array both still exist.
+- **`apps/api/src/repositories/articles.repository.ts` cursor pagination keys on
+  a millisecond-truncated `created_at` ISO string** (`listPublishedVersions`,
+  `listForPublisher`) and can re-serve or skip a row sharing a millisecond with
+  the page boundary. Pre-existing; Sprint 5's evidence list dodged it by keying
+  on `id`. Repay by moving those cursors to an `id`-keyset or a full-precision
+  `(created_at, id)` composite when next touched.
+- **`apps/api`'s error handler maps only `AppError` / `ZodError` / Fastify
+  schema `validation` to the error envelope.** A `415` (body with no
+  `Content-Type`) or a `413` (`@fastify/multipart` `fileSize` limit) becomes a
+  generic `500`. No realistic client hits either. Repay by passing through a
+  `FastifyError` with a 4xx `statusCode`.
+- **No real `AnchorProvider`.** Fake only, by decision (2026-09-08). Repay when
+  deploying to a real chain.
+- **No admin re-queue for `anchor_failed`.** Terminal since Sprint 4. A version
   stuck there needs a future endpoint; today only a manual DB update resets it.
-- **`GET /articles/{id}/verification` still unbuilt.** Needs Evidence, Review,
-  Dispute. Most of `/verification-result` is still mock because of this — the
-  Integrity Record is now real, the trust summary / evidence / credibility /
-  reviewer notes are not.
+- **`GET /articles/{id}/verification` still unbuilt.** Now needs only Review and
+  Dispute data (Evidence exists as of Sprint 5). Most of `/verification-result`
+  is still mock because of this — the Integrity Record and the Supporting
+  Evidence panel are real, the trust summary / credibility / reviewer notes are
+  not.
 - **`RegisterForm.tsx` still unwired.** Needs local-account provisioning plus
   `POST /publishers` and `POST /reviewers/apply` handlers (in `openapi.json`,
   no routes). Approach (Clerk headless hooks) confirmed; backend not built.
@@ -305,7 +381,10 @@ None outstanding.
   discarding every write, and `apps/api` having no CORS — both fixed in Sprint 3,
   both only catchable from a real browser. Sprint 4's "crash between submit and
   confirm" wedge — fixed, only catchable by a test that models a provider
-  restart. Automated tests alone are not sufficient proof a sprint is done.
+  restart. Sprint 5's millisecond-truncated evidence cursor — fixed, only
+  catchable by appending three rows inside one millisecond. Automated tests
+  alone are not sufficient proof a sprint is done, but a test that models the
+  ugly timing is what caught this one.
 
 ## How to run
 
@@ -319,7 +398,7 @@ pnpm lint                                      # same four — 0 errors/warnings
 pnpm --filter @sourceit/shared db:migrate      # applies all 6 migrations for real — verified
 pnpm --filter @sourceit/shared seed            # verified against a real database
 pnpm --filter @sourceit/anchoring test         # 33/33 — verified
-TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 25/25 — verified
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 38/38 — verified (25 prior + 13 evidence)
 TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run                        # 7/7 — verified
 pnpm --filter @sourceit/shared openapi:generate && pnpm --filter @sourceit/shared client:generate  # regenerated, not hand-edited
 pnpm dev                                        # runs apps/api + apps/worker in parallel; both need ../../.env
@@ -330,7 +409,9 @@ pnpm --filter @sourceit/web build              # 2204 modules — verified
 `.env` for `pnpm dev`: `DATABASE_URL`, `CLERK_SECRET_KEY`,
 `CLERK_PUBLISHABLE_KEY`, `CORS_ORIGIN` (api); the worker reads the same file and
 takes optional `ANCHOR_TICK_MS` / `ANCHOR_MAX_BATCH` / `ANCHOR_MAX_ATTEMPTS` /
-`FAKE_ANCHOR_CONFIRMATIONS`, all with defaults.
+`FAKE_ANCHOR_CONFIRMATIONS`, all with defaults. `apps/api` also accepts injected
+`objectStore` / `sourceArchiver` in `buildApp` (tests and any real deployment);
+unset, both default to the in-memory / fake implementation.
 
 Still not possible here: `docker compose up` specifically, or Testcontainers
 (both need Docker).
