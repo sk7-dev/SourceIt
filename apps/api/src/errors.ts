@@ -36,3 +36,13 @@ export class ConflictError extends AppError {
     super(409, "CONFLICT", message);
   }
 }
+
+// A 400 for a request that parsed structurally but is semantically invalid —
+// e.g. a multipart evidence upload missing the file part. Shares the
+// `VALIDATION_ERROR` code with the Zod path in src/plugins/errorHandler.ts so
+// the frontend switches on one code for all bad-input cases.
+export class ValidationError extends AppError {
+  constructor(message: string, details?: Array<{ field: string; message: string }>) {
+    super(400, "VALIDATION_ERROR", message, details);
+  }
+}
