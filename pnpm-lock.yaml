@@ -355,6 +355,43 @@ importers:
         specifier: 6.3.5
         version: 6.3.5(@types/node@26.3.0)(jiti@2.7.0)(lightningcss@1.30.1)(tsx@4.23.12)(yaml@2.9.0)
 
+  apps/worker:
+    dependencies:
+      '@sourceit/anchoring':
+        specifier: workspace:*
+        version: link:../../packages/anchoring
+      '@sourceit/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      drizzle-orm:
+        specifier: ^0.36.4
+        version: 0.36.4(@types/pg@8.23.1)(@types/react@19.2.18)(pg@8.23.0)(react@18.3.1)
+      pg:
+        specifier: ^8.13.1
+        version: 8.23.0
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: ^10.16.0
+        version: 10.28.0(supports-color@10.2.2)
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.12
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.30.1)(supports-color@10.2.2)
+
   packages/anchoring:
     devDependencies:
       typescript:
@@ -369,6 +406,9 @@ importers:
       '@asteasolutions/zod-to-openapi':
         specifier: ^7.3.0
         version: 7.3.4(zod@3.25.76)
+      '@sourceit/anchoring':
+        specifier: workspace:*
+        version: link:../anchoring
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@types/pg@8.23.1)(@types/react@19.2.18)(pg@8.23.0)(react@18.3.1)
@@ -6434,6 +6474,15 @@ snapshots:
       tailwindcss: 4.1.12
       vite: 6.3.5(@types/node@26.3.0)(jiti@2.7.0)(lightningcss@1.30.1)(tsx@4.23.12)(yaml@2.9.0)
 
+  '@testcontainers/postgresql@10.28.0(supports-color@10.2.2)':
+    dependencies:
+      testcontainers: 10.28.0(supports-color@10.2.2)
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
+
   '@testcontainers/postgresql@10.28.0(supports-color@7.2.0)':
     dependencies:
       testcontainers: 10.28.0(supports-color@7.2.0)
@@ -7073,12 +7122,33 @@ snapshots:
     dependencies:
       yaml: 2.9.0
 
+  docker-modem@5.0.7(supports-color@10.2.2):
+    dependencies:
+      debug: 4.4.3(supports-color@10.2.2)
+      readable-stream: 3.6.2
+      split-ca: 1.0.1
+      ssh2: 1.17.0
+    transitivePeerDependencies:
+      - supports-color
+
   docker-modem@5.0.7(supports-color@7.2.0):
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       readable-stream: 3.6.2
       split-ca: 1.0.1
       ssh2: 1.17.0
+    transitivePeerDependencies:
+      - supports-color
+
+  dockerode@4.0.12(supports-color@10.2.2):
+    dependencies:
+      '@balena/dockerignore': 1.0.2
+      '@grpc/grpc-js': 1.14.4
+      '@grpc/proto-loader': 0.7.15
+      docker-modem: 5.0.7(supports-color@10.2.2)
+      protobufjs: 7.6.5
+      tar-fs: 2.1.5
+      uuid: 10.0.0
     transitivePeerDependencies:
       - supports-color
 
@@ -8446,6 +8516,29 @@ snapshots:
       - bare-abort-controller
       - react-native-b4a
 
+  testcontainers@10.28.0(supports-color@10.2.2):
+    dependencies:
+      '@balena/dockerignore': 1.0.2
+      '@types/dockerode': 3.3.47
+      archiver: 7.0.1
+      async-lock: 1.4.1
+      byline: 5.0.0
+      debug: 4.4.3(supports-color@10.2.2)
+      docker-compose: 0.24.8
+      dockerode: 4.0.12(supports-color@10.2.2)
+      get-port: 7.2.0
+      proper-lockfile: 4.1.2
+      properties-reader: 2.3.0
+      ssh-remote-port-forward: 1.0.4
+      tar-fs: 3.1.3
+      tmp: 0.2.7
+      undici: 5.29.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
+
   testcontainers@10.28.0(supports-color@7.2.0):
     dependencies:
       '@balena/dockerignore': 1.0.2
@@ -8606,6 +8699,24 @@ snapshots:
       d3-time: 3.1.0
       d3-timer: 3.0.1
 
+  vite-node@2.1.9(@types/node@22.20.1)(lightningcss@1.30.1)(supports-color@10.2.2):
+    dependencies:
+      cac: 6.7.14
+      debug: 4.4.3(supports-color@10.2.2)
+      es-module-lexer: 1.7.0
+      pathe: 1.1.2
+      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.30.1)
+    transitivePeerDependencies:
+      - '@types/node'
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+
   vite-node@2.1.9(@types/node@22.20.1)(lightningcss@1.30.1)(supports-color@7.2.0):
     dependencies:
       cac: 6.7.14
@@ -8677,6 +8788,41 @@ snapshots:
       lightningcss: 1.30.1
       tsx: 4.23.12
       yaml: 2.9.0
+
+  vitest@2.1.9(@types/node@22.20.1)(lightningcss@1.30.1)(supports-color@10.2.2):
+    dependencies:
+      '@vitest/expect': 2.1.9
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.30.1))
+      '@vitest/pretty-format': 2.1.9
+      '@vitest/runner': 2.1.9
+      '@vitest/snapshot': 2.1.9
+      '@vitest/spy': 2.1.9
+      '@vitest/utils': 2.1.9
+      chai: 5.3.3
+      debug: 4.4.3(supports-color@10.2.2)
+      expect-type: 1.4.0
+      magic-string: 0.30.21
+      pathe: 1.1.2
+      std-env: 3.10.0
+      tinybench: 2.9.0
+      tinyexec: 0.3.2
+      tinypool: 1.1.1
+      tinyrainbow: 1.2.0
+      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.30.1)
+      vite-node: 2.1.9(@types/node@22.20.1)(lightningcss@1.30.1)(supports-color@10.2.2)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@types/node': 22.20.1
+    transitivePeerDependencies:
+      - less
+      - lightningcss
+      - msw
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
 
   vitest@2.1.9(@types/node@22.20.1)(lightningcss@1.30.1)(supports-color@7.2.0):
     dependencies:
