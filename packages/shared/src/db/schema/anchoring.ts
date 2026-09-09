@@ -1,4 +1,5 @@
 import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { MerkleProofEntry } from "@sourceit/anchoring";
 import { articleVersions } from "./article-versions";
 import { anchorBatchStatusEnum, anchorStatusEnum } from "./enums";
 
@@ -6,11 +7,17 @@ import { anchorBatchStatusEnum, anchorStatusEnum } from "./enums";
 // "Third-party systems in scope": "batch hashes into a Merkle tree, anchor the
 // root on a schedule." Mutable by design (submitted/confirmed/failed are real
 // state transitions of an in-flight chain transaction, not content history).
+// The attempts/next_attempt_at/last_error columns (Sprint 4) are the worker's
+// durable retry-with-backoff bookkeeping — see docs/ANCHORING.md.
 export const anchorBatches = pgTable("anchor_batches", {
   id: uuid("id").defaultRandom().primaryKey(),
   merkleRoot: text("merkle_root"),
   chainTxHash: text("chain_tx_hash"),
   status: anchorBatchStatusEnum("status").notNull().default("pending"),
+  leafCount: integer("leaf_count").notNull().default(0),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  lastError: text("last_error"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -22,7 +29,9 @@ export const anchorBatches = pgTable("anchor_batches", {
 // docs/DOMAIN.md #13. `status` is the anchor track from OPEN_QUESTIONS.md #1's
 // resolution: always one of pending/anchored/anchor_failed, always surfaced, never
 // implied by the version's presence alone. Created as `pending` the moment a
-// non-draft version is submitted.
+// non-draft version is submitted. `merkleProof` is filled by the worker once the
+// batch confirms — its shape is the frozen inclusion-proof format from
+// docs/ANCHORING.md, shared with the offline verifier in @sourceit/anchoring.
 export const anchorRecords = pgTable("anchor_records", {
   id: uuid("id").defaultRandom().primaryKey(),
   articleVersionId: uuid("article_version_id")
@@ -32,7 +41,7 @@ export const anchorRecords = pgTable("anchor_records", {
   anchorBatchId: uuid("anchor_batch_id").references(() => anchorBatches.id),
   status: anchorStatusEnum("status").notNull().default("pending"),
   leafHash: text("leaf_hash").notNull(),
-  merkleProof: jsonb("merkle_proof").$type<string[]>(),
+  merkleProof: jsonb("merkle_proof").$type<MerkleProofEntry[]>(),
   blockHeight: integer("block_height"),
   chainConfirmations: integer("chain_confirmations").notNull().default(0),
   anchoredAt: timestamp("anchored_at", { withTimezone: true }),
