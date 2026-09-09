@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import { env } from "./env";
 import { db as defaultDb } from "./db";
+import { createInMemoryObjectStore, type ObjectStore } from "./storage/objectStore";
+import { createFakeSourceArchiver, type SourceArchiver } from "./storage/sourceArchiver";
 import { verifyClerkSession, type SessionVerifier } from "./auth/verifySession";
 import { createRequireActor, createResolveOptionalActor } from "./auth/requireActor";
 import { createAccountsRepository } from "./repositories/accounts.repository";
@@ -13,10 +16,13 @@ import { registerMeRoute } from "./routes/me.route";
 import { registerArticleRoutes } from "./routes/articles.route";
 import { registerPublisherArticlesRoute } from "./routes/publisherArticles.route";
 import { registerAnchorRoute } from "./routes/anchor.route";
+import { registerEvidenceRoutes } from "./routes/evidence.route";
 
 declare module "fastify" {
   interface FastifyInstance {
     db: typeof defaultDb;
+    objectStore: ObjectStore;
+    sourceArchiver: SourceArchiver;
     requireActor: ReturnType<typeof createRequireActor>;
     resolveOptionalActor: ReturnType<typeof createResolveOptionalActor>;
   }
@@ -25,6 +31,11 @@ declare module "fastify" {
 export interface BuildAppOptions {
   db?: typeof defaultDb;
   verifySession?: SessionVerifier;
+  // Both default to the in-memory / fake implementation — a real object store
+  // and a real guarded URL archiver are later, swappable concerns (see the
+  // storage/ modules and docs/PROJECT_STATE.md).
+  objectStore?: ObjectStore;
+  sourceArchiver?: SourceArchiver;
 }
 
 // The single place the app is assembled — used by src/server.ts to actually
@@ -46,8 +57,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     origin: env.CORS_ORIGIN ? env.CORS_ORIGIN.split(",") : env.NODE_ENV === "development",
   });
 
+  // Evidence uploads (POST /versions/{id}/evidence) are multipart/form-data —
+  // the one endpoint that isn't JSON. 25 MB / one file / a handful of small
+  // text fields is ample for year-one evidence (screenshots, PDFs); revisit
+  // with the real object store.
+  app.register(multipart, {
+    limits: { fileSize: 25 * 1024 * 1024, files: 1, fields: 16 },
+  });
+
   const db = options.db ?? defaultDb;
   app.decorate("db", db);
+  app.decorate("objectStore", options.objectStore ?? createInMemoryObjectStore());
+  app.decorate("sourceArchiver", options.sourceArchiver ?? createFakeSourceArchiver());
   app.decorate("verifySession", options.verifySession ?? verifyClerkSession);
 
   const accountsRepo = createAccountsRepository(db);
@@ -61,6 +82,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerArticleRoutes(app);
   registerPublisherArticlesRoute(app);
   registerAnchorRoute(app);
+  registerEvidenceRoutes(app);
 
   return app;
 }
