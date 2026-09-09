@@ -13,7 +13,8 @@ export type Action =
   | { type: "article:createDraft"; publisherId: string }
   | { type: "article:submit"; publisherId: string }
   | { type: "article:writeDraft"; publisherId: string }
-  | { type: "article:archive"; publisherId: string };
+  | { type: "article:archive"; publisherId: string }
+  | { type: "evidence:attach"; publisherId: string };
 
 export function createAuthorization(publishersRepo: ReturnType<typeof createPublishersRepository>) {
   async function can(actor: Actor, action: Action): Promise<boolean> {
@@ -21,6 +22,7 @@ export function createAuthorization(publishersRepo: ReturnType<typeof createPubl
       case "article:createDraft":
       case "article:writeDraft":
       case "article:archive":
+      case "evidence:attach":
         return publishersRepo.isMember(action.publisherId, actor.accountId);
       case "article:submit": {
         const isMember = await publishersRepo.isMember(action.publisherId, actor.accountId);
