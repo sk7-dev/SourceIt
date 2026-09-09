@@ -2,8 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { FileText, Image, Video, ExternalLink } from "lucide-react";
+import type { components } from "@sourceit/shared/client";
 
-const evidence = [
+type Evidence = components["schemas"]["Evidence"];
+
+const mockEvidence = [
   {
     id: 1,
     type: "PDF",
@@ -46,7 +49,48 @@ const evidence = [
   },
 ];
 
-export default function EvidenceSection() {
+const fileTypeStyle: Record<Evidence["fileType"], { icon: typeof FileText; color: string; bgColor: string }> = {
+  image: { icon: Image, color: "text-blue-600", bgColor: "bg-blue-50" },
+  video: { icon: Video, color: "text-purple-600", bgColor: "bg-purple-50" },
+  document: { icon: FileText, color: "text-red-600", bgColor: "bg-red-50" },
+};
+
+const tagLabel: Record<Evidence["tag"], string> = {
+  cover_image: "Cover image",
+  media: "Media",
+  evidence: "Evidence",
+  source: "Source",
+};
+
+// `evidence` null → not wired yet (no articleId, or the fetch is in flight):
+// fall back to the mock rows, matching VersionHistory / IntegrityRecord.
+export default function EvidenceSection({ evidence }: { evidence?: Evidence[] | null }) {
+  const rows =
+    evidence == null
+      ? mockEvidence.map((m) => ({
+          key: String(m.id),
+          name: m.name,
+          icon: m.icon,
+          color: m.color,
+          bgColor: m.bgColor,
+          badge: m.note,
+          badgeColor: m.noteColor,
+          archived: false,
+        }))
+      : evidence.map((e) => {
+          const style = fileTypeStyle[e.fileType];
+          return {
+            key: e.id,
+            name: e.filename,
+            icon: style.icon,
+            color: style.color,
+            bgColor: style.bgColor,
+            badge: e.caption ? `${tagLabel[e.tag]} · ${e.caption}` : tagLabel[e.tag],
+            badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
+            archived: e.isArchivedSnapshot,
+          };
+        });
+
   return (
     <Card>
       <CardHeader>
@@ -54,11 +98,14 @@ export default function EvidenceSection() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {evidence.map((item) => {
+          {rows.length === 0 && (
+            <p className="text-sm text-slate-500">No evidence was attached to this version.</p>
+          )}
+          {rows.map((item) => {
             const Icon = item.icon;
             return (
               <div
-                key={item.id}
+                key={item.key}
                 className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all"
               >
                 <div className="flex items-center gap-3 flex-1">
@@ -67,9 +114,16 @@ export default function EvidenceSection() {
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-slate-900 text-sm mb-1">{item.name}</p>
-                    <Badge variant="outline" className={`text-xs ${item.noteColor}`}>
-                      {item.note}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={`text-xs ${item.badgeColor}`}>
+                        {item.badge}
+                      </Badge>
+                      {item.archived && (
+                        <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-200">
+                          Archived snapshot
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <Button variant="outline" size="sm">

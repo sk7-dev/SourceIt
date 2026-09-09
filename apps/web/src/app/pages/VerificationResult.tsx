@@ -16,15 +16,16 @@ import type { components } from "@sourceit/shared/client";
 
 type ArticleVersion = components["schemas"]["ArticleVersion"];
 type AnchorRecord = components["schemas"]["AnchorRecord"];
+type Evidence = components["schemas"]["Evidence"];
 
-// Only wired for the sub-parts the backend can actually back so far (the
-// article itself and its public version history — GET /articles/{id} and
-// GET /articles/{id}/versions). TrustSummaryCard, PublisherCredibility,
-// EvidenceSection, ReviewerNotes, and IntegrityRecord all need the composed
-// GET /articles/{id}/verification endpoint, which doesn't exist yet (it needs
-// Evidence, Review, and Dispute data — see docs/PROJECT_STATE.md) — they stay
-// on mock data until that endpoint exists, whether or not an articleId is
-// present in the URL.
+// Wired for the sub-parts the backend can back so far: the article itself and
+// its public version history (GET /articles/{id}, GET /articles/{id}/versions),
+// the current version's anchor state (GET /versions/{id}/anchor), and its
+// evidence list (GET /versions/{id}/evidence). TrustSummaryCard,
+// PublisherCredibility, and ReviewerNotes still need the composed
+// GET /articles/{id}/verification endpoint (Review + Dispute data), which
+// doesn't exist yet — they stay on mock data whether or not an articleId is
+// present.
 export default function VerificationResult() {
   const navigate = useNavigate();
   const { articleId } = useParams();
@@ -32,6 +33,7 @@ export default function VerificationResult() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [versions, setVersions] = useState<ArticleVersion[] | null>(null);
   const [anchor, setAnchor] = useState<AnchorRecord | null>(null);
+  const [evidence, setEvidence] = useState<Evidence[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function VerificationResult() {
     setLoadError(null);
     setVersions(null);
     setAnchor(null);
+    setEvidence(null);
 
     publicApiClient
       .GET("/articles/{articleId}", { params: { path: { articleId } } })
@@ -59,6 +62,11 @@ export default function VerificationResult() {
             .GET("/versions/{versionId}/anchor", { params: { path: { versionId: currentVersionId } } })
             .then(({ data: anchorData }) => {
               if (anchorData) setAnchor(anchorData);
+            });
+          publicApiClient
+            .GET("/versions/{versionId}/evidence", { params: { path: { versionId: currentVersionId } } })
+            .then(({ data: evidenceData }) => {
+              if (evidenceData) setEvidence(evidenceData.items);
             });
         }
       });
@@ -148,7 +156,7 @@ export default function VerificationResult() {
               {/* Publisher Credibility & Evidence - Responsive Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <PublisherCredibility />
-                <EvidenceSection />
+                <EvidenceSection evidence={articleId ? evidence : null} />
               </div>
 
               {/* Version History */}
