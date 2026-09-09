@@ -14,6 +14,7 @@ registry.registerPath({
   request: { params: versionIdParam, query: paginationQuerySchema },
   responses: {
     200: { description: "OK", content: { "application/json": { schema: paginatedResponseSchema(reviewSchema) } } },
+    404: { description: "No such published version (unknown, or still a draft)", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -31,6 +32,7 @@ registry.registerPath({
   responses: {
     201: { description: "Created", content: { "application/json": { schema: reviewSchema } } },
     403: { description: "Reviewer is affiliated with this publisher, or not an approved reviewer", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such published version (unknown, or still a draft)", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -47,5 +49,7 @@ registry.registerPath({
   responses: {
     200: { description: "OK", content: { "application/json": { schema: reviewSchema } } },
     403: { description: "Not the reviewer who wrote it", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such review", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    409: { description: "Review is already retracted", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });

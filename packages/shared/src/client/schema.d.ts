@@ -1164,6 +1164,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description No such published version (unknown, or still a draft) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1194,6 +1203,15 @@ export interface paths {
                 };
                 /** @description Reviewer is affiliated with this publisher, or not an approved reviewer */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such published version (unknown, or still a draft) */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1245,6 +1263,24 @@ export interface paths {
                 };
                 /** @description Not the reviewer who wrote it */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such review */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Review is already retracted */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };

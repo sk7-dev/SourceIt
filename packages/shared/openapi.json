@@ -3029,6 +3029,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such published version (unknown, or still a draft)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -3076,6 +3086,16 @@
           },
           "403": {
             "description": "Reviewer is affiliated with this publisher, or not an approved reviewer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such published version (unknown, or still a draft)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3132,6 +3152,26 @@
           },
           "403": {
             "description": "Not the reviewer who wrote it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Review is already retracted",
             "content": {
               "application/json": {
                 "schema": {
