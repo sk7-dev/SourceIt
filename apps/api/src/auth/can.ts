@@ -4,6 +4,10 @@ import type { createReviewersRepository } from "../repositories/reviewers.reposi
 
 export interface Actor {
   accountId: string;
+  // The account's role, resolved by requireActor/resolveOptionalActor. Only
+  // dispute:resolve needs it (a site admin may close a dispute the filer left
+  // hanging).
+  role: string;
 }
 
 // A single can(actor, action, resource) function — every handler that needs
@@ -21,7 +25,18 @@ export type Action =
   // is denied (build prompt: "Conflict of interest is structural. Enforce it,
   // don't disclose it").
   | { type: "review:create"; publisherId: string }
-  | { type: "review:retract"; reviewerAccountId: string };
+  | { type: "review:retract"; reviewerAccountId: string }
+  // Filing a dispute has the same gate as a review — an approved reviewer with
+  // no structural affiliation to the disputed publisher.
+  | { type: "dispute:file"; publisherId: string }
+  // Only a member of the disputed publisher may append a `publisher_responded`
+  // event (free text and/or a correction). They can never resolve, withdraw,
+  // or hide it (build prompt: "A publisher cannot suppress a dispute").
+  | { type: "dispute:respond"; publisherId: string }
+  // Withdrawing is the filer's alone; resolving is the filer's or a site
+  // admin's — never the publisher's.
+  | { type: "dispute:withdraw"; filerAccountId: string }
+  | { type: "dispute:resolve"; filerAccountId: string };
 
 export function createAuthorization(
   publishersRepo: ReturnType<typeof createPublishersRepository>,
@@ -33,13 +48,15 @@ export function createAuthorization(
       case "article:writeDraft":
       case "article:archive":
       case "evidence:attach":
+      case "dispute:respond":
         return publishersRepo.isMember(action.publisherId, actor.accountId);
       case "article:submit": {
         const isMember = await publishersRepo.isMember(action.publisherId, actor.accountId);
         if (!isMember) return false;
         return publishersRepo.isVerified(action.publisherId);
       }
-      case "review:create": {
+      case "review:create":
+      case "dispute:file": {
         const reviewer = await reviewersRepo.findByAccountId(actor.accountId);
         if (!reviewer || reviewer.approvalStatus !== "approved") return false;
         const affiliated = await publishersRepo.isMember(action.publisherId, actor.accountId);
@@ -47,6 +64,10 @@ export function createAuthorization(
       }
       case "review:retract":
         return action.reviewerAccountId === actor.accountId;
+      case "dispute:withdraw":
+        return action.filerAccountId === actor.accountId;
+      case "dispute:resolve":
+        return action.filerAccountId === actor.accountId || actor.role === "admin";
     }
   }
 
@@ -65,8 +86,14 @@ function describeDenial(action: Action): string {
       return "Only a member of a verified publisher can submit an article for publication";
     case "review:create":
       return "Only an approved reviewer with no affiliation to this publisher can review its articles";
+    case "dispute:file":
+      return "Only an approved reviewer with no affiliation to this publisher can dispute its articles";
     case "review:retract":
       return "Only the reviewer who wrote a review can retract it";
+    case "dispute:withdraw":
+      return "Only the reviewer who filed a dispute can withdraw it";
+    case "dispute:resolve":
+      return "Only the reviewer who filed a dispute, or a site admin, can resolve it";
     default:
       return "Only a member of this publisher can do that";
   }

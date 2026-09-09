@@ -23,7 +23,7 @@ export function createRequireActor(accountsRepo: ReturnType<typeof createAccount
     const account = await accountsRepo.findByClerkUserId(session.clerkUserId);
     if (!account) throw new UnauthenticatedError("No SourceIt account for this session");
 
-    request.actor = { accountId: account.id };
+    request.actor = { accountId: account.id, role: account.role };
   };
 }
 
@@ -35,6 +35,6 @@ export function createResolveOptionalActor(accountsRepo: ReturnType<typeof creat
     const session = await request.server.verifySession(request.headers.authorization).catch(() => null);
     if (!session) return;
     const account = await accountsRepo.findByClerkUserId(session.clerkUserId);
-    if (account) request.actor = { accountId: account.id };
+    if (account) request.actor = { accountId: account.id, role: account.role };
   };
 }
