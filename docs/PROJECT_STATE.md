@@ -1,84 +1,87 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 13  ·  **Current phase:** Phase 4 (remaining slices) — one slice left: publisher-dashboard reads
+**Last updated:** end of Sprint 14  ·  **Current phase:** Phase 4 complete — next is Phase 5 (Hardening)
 
-> **Sprint 13 is awaiting commit** — the working tree holds it. Commit plan is
-> in the closing message. Sprint 12 was committed (git log confirms).
+> **Sprint 14 is awaiting commit** — the working tree holds it. Commit plan is
+> in the closing message. Sprint 13 was committed (git log confirms).
 
 ## Resume here
 
-**Reader features** are done (Sprint 13). `POST /readers` (Clerk session,
-mirrors Sprint 10's `POST /publishers`) lazily materializes the caller's
-`accounts` row with `role = 'reader'`, keyed by the verified `clerkUserId`,
-idempotent; `409` on an email already on a different Clerk user. The six
-per-reader endpoints (`requireActor`) are now live:
+**Phase 4 is endpoint-complete.** Sprint 14 built the six publisher-dashboard
+reads, so every one of the **44 operations in `openapi.json` now has a handler**,
+all verified against a real Postgres:
 
-- `GET`/`POST /saved-articles`, `DELETE /saved-articles/{savedArticleId}`
-- `GET`/`POST /publisher-follows`, `DELETE /publisher-follows/{followId}`
+- `GET /publishers/{id}` — public profile (`publisherSchema`) with read-time
+  `credibilityScore` / `transparencyLevel`.
+- `GET /publishers/{id}/analytics` — `{ totalArticlesPublished,
+  verifiedArticleCount, pendingReviewCount, disputedArticleCount }`.
+- `GET /publishers/{id}/activity` — append-only feed, newest first, keyset on
+  `(createdAt, id)`.
+- `GET /publishers/{id}/credibility` — `{ score, tier, trend, factors }`; tier
+  `≥90 Outstanding / ≥75 Excellent / ≥60 Good / ≥40 Fair / else Poor`; trend =
+  `score − lastHistoryPoint` or `null`.
+- `GET /publishers/{id}/credibility-history` — sparkline series
+  `{ score, recordedAt }`, newest first.
+- `GET /publishers/{id}/reviews` — reviews **and** disputes as one chronological
+  page; composite `<createdAt>~<kind>~<id>` cursor across both tables.
 
-Lists are cursor-paginated on the row `id`. The saved list is denormalized to
-`{ id, articleId, title, publisherName, trustStatus, savedAt }` — `trustStatus`
-is the **same six-value read-time derivation** as
-`GET /articles/{id}/verification`, batched over the page (current versions +
-open-dispute ids + verified ids + redaction map, one query each — no N+1). A
-redacted current version → `title: ""`. The follow list carries `verified` and a
-read-time `credibilityScore` (looped per publisher). `409` on a repeat
-save/follow; `403` on deleting another reader's row; `404` for an unknown /
-archived / draft-only article on `POST /saved-articles`. `RegisterForm.tsx`'s
-reader path is wired to Clerk `useSignUp` + `POST /readers` — all three roles
-now register for real. `SavedArticles.tsx` / `TrustedPublishers.tsx` stay on
-mock data (their mock shapes carry fields the contract does not; wiring needs
-component restructuring the build prompt forbids). No migration. See
-[SPRINT_13_REPORT.md](sprints/SPRINT_13_REPORT.md).
+`/analytics`, `/activity`, `/reviews` are `requireActor` (any signed-in
+account, **not** membership); the other three are public. `404` for an unknown
+publisher on all six.
+
+**`credibility_score_history` and `activity_events` are now written by the API.**
+A `PublisherEventRecorder` (`services/publisherEvents.ts`) is injected into the
+article / review / dispute / version-verification services and called after a
+successful mutation: `recordActivity` (publish / update / correction / review /
+dispute_filed) and `recordCredibilitySnapshot` (publish / correction / archive /
+verify / dispute file / dispute resolve — appends a point only if the recomputed
+score differs from the last). The cached `publishers.credibility_score` column
+is still **not** written — reads compute live; the history table is the log.
+Dashboard frontend components are hardcoded and were not wired (backend + tests
+only). No migration. See [SPRINT_14_REPORT.md](sprints/SPRINT_14_REPORT.md).
+
+Before Sprint 14: **reader features** (Sprint 13) — `POST /readers` + six
+saved-article / publisher-follow endpoints, batched read-time `trustStatus` in
+the saved list. See [SPRINT_13_REPORT.md](sprints/SPRINT_13_REPORT.md).
 
 Before Sprint 13: **redaction** (Sprint 12) — `GET`/`POST /versions/{id}/redaction`,
-admin-only, append-only tombstone (`0007` trigger), read-layer content
-suppression on the public version reads, `tombstoneHash` = `contentHash`. See
-[SPRINT_12_REPORT.md](sprints/SPRINT_12_REPORT.md).
+admin-only, append-only tombstone, read-layer content suppression.
 
-Before Sprint 12: **version verification** (Sprint 11) — `POST /versions/{id}/verify`,
-append-only `version_verifications` row, `verified` derived at read time.
-
-**TrustStatus** precedence (confirmed 2026-09-09):
-`notfound > disputed > publisher_unverified > authentic_under_review > updated >
-authentic`; anchor state and redaction are separate tracks, not inputs. All six
-values reachable for API-created data. **Credibility** (confirmed 2026-09-09):
+**TrustStatus** precedence (2026-09-09): `notfound > disputed >
+publisher_unverified > authentic_under_review > updated > authentic`; anchor
+state and redaction are separate tracks. All six values reachable for
+API-created data. **Credibility** (2026-09-09):
 `score = clamp(0..100, round(60 + 40·verifiedRatio − 35·openDisputeRatio +
 10·correctionRatio))`, `transparencyLevel = clamp(1..5, 1 +
 round(4·correctionRatio))`, over the publisher's published articles, `0 / 3`
-when none. Computed at read time in `apps/api/src/services/trust.ts`; the cached
-`publishers.credibility_score` column and `credibility_score_history` table
-remain unwritten (publisher-dashboard slice).
+when none. Computed at read time in `apps/api/src/services/trust.ts`; as of
+Sprint 14 the value is also logged to `credibility_score_history` on
+score-moving events (but the cached column stays unwritten).
 
-**Biggest current gap:** **one Phase 4 slice remains — publisher-dashboard
-reads** (`GET /publishers/{id}`, `/analytics`, `/activity`, `/credibility`,
-`/credibility-history`, `/reviews`) — and **nothing has been pushed since Sprint
-2, so CI and `docker compose up` have never actually run.**
+**Biggest current gap:** **Phase 5 (Hardening) has not started**, and **nothing
+has been pushed since Sprint 2 — CI and `docker compose up` have never run.**
 
-Still mock / unbuilt, deliberately or blocked, after Sprint 13:
+Still mock / unbuilt, deliberately or blocked, after Sprint 14:
 
-- **Publisher-dashboard reads unbuilt** — the six `GET /publishers/{id}/*`
-  operations are declared in `openapi.json` but not implemented; the cached
-  `credibility_score` column and `credibility_score_history` table are still
-  never written. This is the last Phase 4 slice.
-- **`SavedArticles.tsx` / `TrustedPublishers.tsx` still run on mock data** —
-  their hardcoded arrays carry `trustScore` (number), `tags`, `lastChecked`,
-  `categories`, `transparencyLevel`, none of which the Sprint 1 contract
-  provides; wiring needs component restructuring the build prompt forbids. Also
-  mock: `RecentlyVerified.tsx`, `UserStats.tsx` (need a search / stats
-  endpoint that does not exist).
-- **`GET /publishers/{id}/articles` is not redaction-suppressed** — the
-  authenticated owner dashboard list still shows a redacted article's headline.
-- **`changeSummary` is not blanked on a redacted version.**
-- **Redaction is irreversible**; **no "un-verify"** of a `version_verifications`
-  row.
+- **All Phase 5 items** — rate limiting; N+1 audit with `EXPLAIN`; structured
+  error tracking; backups + a tested restore; `docs/RUNBOOK.md`; a written
+  per-endpoint threat pass.
+- **The publisher-dashboard frontend components are hardcoded** (`AnalyticsCards`,
+  `CredibilityPanel`, `RecentActivity`, `PublisherProfileCard`,
+  `ReviewsDisputes`) — no props, no fetch; wiring needs restructuring the build
+  prompt forbids. Same for `SavedArticles.tsx` / `TrustedPublishers.tsx`
+  (Sprint 13), `RecentlyVerified.tsx`, `UserStats.tsx` (need search / stats).
+- **`activity_events` covers only the `apps/api` write paths** — the worker's
+  anchor confirmation is not emitted as a `blockchain` event; redaction is not
+  emitted as a `redaction` event.
+- **`GET /publishers/{id}/articles` is not redaction-suppressed**;
+  **`changeSummary` is not blanked on a redacted version**; **redaction is
+  irreversible**; **no un-verify** of a `version_verifications` row.
 - **No real Clerk Organization** — `publishers.clerk_org_id` is a
   `local_org_<uuid>` placeholder.
-- **`ensureAccount` is first-writer-wins on `role`** — one `accounts` row, one
-  role.
+- **`ensureAccount` is first-writer-wins on `role`.**
 - **`reviewerSchema` in the approval queue is identity-free.**
 - **No dispute frontend**; `ReviewsDisputes.tsx` untouched.
-- **No reviewer-facing write UI** (Sprint 6) — `ReviewerPortal.tsx` is a stub;
-  a reviewer files reviews / disputes / verifications via the raw endpoints.
+- **No reviewer-facing write UI** (Sprint 6) — `ReviewerPortal.tsx` is a stub.
 - Carried from Sprint 5: evidence hashes not anchored; no real `ObjectStore` /
   `SourceArchiver` / evidence-blob-read endpoint; evidence frontend write path
   unwired.
@@ -93,63 +96,66 @@ Still mock / unbuilt, deliberately or blocked, after Sprint 13:
 | 0 | Discovery — domain model, screen map, open questions, stack proposal | Complete with carryover | [SPRINT_0_REPORT.md](sprints/SPRINT_0_REPORT.md) |
 | 1 | Full DB schema, Zod contracts, generated openapi.json, seed script | Complete with carryover | [SPRINT_1_REPORT.md](sprints/SPRINT_1_REPORT.md) |
 | 2 | apps/api skeleton: auth, error handling, logging, config, health, Docker Compose, CI, GET /me | Complete with carryover | [SPRINT_2_REPORT.md](sprints/SPRINT_2_REPORT.md) |
-| 3 | Article vertical slice: full backend CRUD, packages/anchoring, generated client — verified live | Complete with carryover | [SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) |
-| 4 | Anchoring slice: Merkle tree + proof + AnchorProvider, durable crash-safe worker, GET /versions/{id}/anchor, frontend anchor state | Complete with carryover | [SPRINT_4_REPORT.md](sprints/SPRINT_4_REPORT.md) |
-| 5 | Evidence slice: multipart POST + public GET /versions/{id}/evidence, content-addressed ObjectStore + SourceArchiver seams (fakes), append-only, frontend evidence list | Complete with carryover | [SPRINT_5_REPORT.md](sprints/SPRINT_5_REPORT.md) |
-| 6 | Review slice: GET/POST /versions/{id}/reviews + POST /reviews/{id}/retract, approved-reviewer gate, structural COI, append-only retraction, frontend reviewer notes | Complete with carryover | [SPRINT_6_REPORT.md](sprints/SPRINT_6_REPORT.md) |
-| 7 | Dispute slice: 5 endpoints, publisher-cannot-suppress enforced, terminal lifecycle, derived status, append-only — backend + tests only | Complete with carryover | [SPRINT_7_REPORT.md](sprints/SPRINT_7_REPORT.md) |
-| 8 | Composed GET /articles/{id}/verification: version history + evidence + reviews + publisher + anchor + redaction + derived TrustStatus + trustSummary; read-time credibility; VerificationResult on one call | Complete with carryover | [SPRINT_8_REPORT.md](sprints/SPRINT_8_REPORT.md) |
-| 9 | Admin decision queues: GET/POST publisher-verification and reviewer-approval, single `admin` authz action; backend + tests only | Complete with carryover | [SPRINT_9_REPORT.md](sprints/SPRINT_9_REPORT.md) |
-| 10 | Account provisioning: POST /publishers + POST /reviewers/apply, lazy `accounts` materialization behind `requireAuth`, RegisterForm publisher+reviewer paths wired | Complete with carryover | [SPRINT_10_REPORT.md](sprints/SPRINT_10_REPORT.md) |
-| 11 | Version-verification slice: POST /versions/{id}/verify, append-only `version_verifications` row, `verified` derived at read time — unblocks authentic/updated TrustStatus; backend + tests only | Complete with carryover | [SPRINT_11_REPORT.md](sprints/SPRINT_11_REPORT.md) |
-| 12 | Redaction slice: GET/POST /versions/{id}/redaction, admin-only, append-only tombstone (0007 trigger), read-layer content suppression, tombstoneHash = contentHash; backend + tests only | Complete with carryover | [SPRINT_12_REPORT.md](sprints/SPRINT_12_REPORT.md) |
-| 13 | Reader-features slice: POST /readers + six saved-article/publisher-follow endpoints, batched read-time trustStatus in the saved list, RegisterForm reader path wired | Complete with carryover | [SPRINT_13_REPORT.md](sprints/SPRINT_13_REPORT.md) |
+| 3 | Article vertical slice: backend CRUD, packages/anchoring, generated client — verified live | Complete with carryover | [SPRINT_3_REPORT.md](sprints/SPRINT_3_REPORT.md) |
+| 4 | Anchoring slice: Merkle tree + proof + AnchorProvider, durable crash-safe worker, GET /versions/{id}/anchor | Complete with carryover | [SPRINT_4_REPORT.md](sprints/SPRINT_4_REPORT.md) |
+| 5 | Evidence slice: multipart POST + public GET /versions/{id}/evidence, ObjectStore + SourceArchiver seams (fakes), append-only | Complete with carryover | [SPRINT_5_REPORT.md](sprints/SPRINT_5_REPORT.md) |
+| 6 | Review slice: GET/POST /versions/{id}/reviews + retract, approved-reviewer gate, structural COI, append-only retraction | Complete with carryover | [SPRINT_6_REPORT.md](sprints/SPRINT_6_REPORT.md) |
+| 7 | Dispute slice: 5 endpoints, publisher-cannot-suppress, terminal lifecycle, derived status, append-only — backend + tests only | Complete with carryover | [SPRINT_7_REPORT.md](sprints/SPRINT_7_REPORT.md) |
+| 8 | Composed GET /articles/{id}/verification + read-time credibility; VerificationResult on one call | Complete with carryover | [SPRINT_8_REPORT.md](sprints/SPRINT_8_REPORT.md) |
+| 9 | Admin decision queues: publisher-verification + reviewer-approval, single `admin` authz action — backend + tests only | Complete with carryover | [SPRINT_9_REPORT.md](sprints/SPRINT_9_REPORT.md) |
+| 10 | Account provisioning: POST /publishers + POST /reviewers/apply, lazy `accounts` materialization, RegisterForm wired | Complete with carryover | [SPRINT_10_REPORT.md](sprints/SPRINT_10_REPORT.md) |
+| 11 | Version-verification: POST /versions/{id}/verify, append-only `version_verifications`, `verified` derived at read time | Complete with carryover | [SPRINT_11_REPORT.md](sprints/SPRINT_11_REPORT.md) |
+| 12 | Redaction: GET/POST /versions/{id}/redaction, admin-only, append-only tombstone (0007 trigger), read-layer suppression | Complete with carryover | [SPRINT_12_REPORT.md](sprints/SPRINT_12_REPORT.md) |
+| 13 | Reader features: POST /readers + six saved-article/publisher-follow endpoints, batched read-time trustStatus | Complete with carryover | [SPRINT_13_REPORT.md](sprints/SPRINT_13_REPORT.md) |
+| 14 | Publisher-dashboard reads: 6 GET /publishers/{id}/* endpoints; activity_events + credibility_score_history now written by the API | Complete with carryover | [SPRINT_14_REPORT.md](sprints/SPRINT_14_REPORT.md) |
 
 ## Current domain model
 
 Supersedes `docs/DOMAIN.md` where they disagree. **19 tables** — unchanged since
-Sprint 11 added `version_verifications` (Sprint 12 added a trigger to
-`redactions`; Sprint 13 added no schema).
+Sprint 11 added `version_verifications`. Sprint 14 added no schema; it started
+**writing** `activity_events` and `credibility_score_history` (both Sprint 1
+tables, unused until now).
 
-TrustStatus, credibility, and `verified` are computed at read time, never
-stored. Redaction is read-layer suppression (`toApiVersion` nulls the content
-fields when a `redactions` row is present).
+TrustStatus, credibility (the score) and `verified` are computed at read time.
+`credibility_score_history` logs the score on each score-moving event;
+`activity_events` logs publish / correction / review / dispute events. Redaction
+is read-layer suppression. The cached `publishers.credibility_score` column is
+still unwritten.
 
 ```
 Account ──has role──> reader | publisher | reviewer | admin
 
-Publisher (1) ──has──> (N) PublisherMember ──> Account   [org membership, also the
-                                                            reviewer-COI join table]
+Publisher (1) ──has──> (N) PublisherMember ──> Account   [org membership + reviewer-COI join]
 Publisher (1) ──publishes──> (N) Article
+Publisher (1) ──has──> (N) ActivityEvent           [written Sprint 14: publish/update/
+                                                     correction/review/dispute_filed]
+Publisher (1) ──has──> (N) CredibilityScoreHistory [written Sprint 14: one point per
+                                                     score-moving event, deduped]
 
 Article   (1) ──has──> (N) ArticleVersion   [append-only once non-draft, hash-chained]
-ArticleVersion (1) ──has──> (N) Evidence           [draft-only attach, then frozen]
-ArticleVersion (1) ──has──> (1) AnchorRecord       [pending/anchored/anchor_failed]
-ArticleVersion (1) ──has──> (0..1) Redaction       [append-only tombstone (0001+0007);
-                                                     admin-only; blanks the version's
-                                                     content at the read layer]
-ArticleVersion (1) ──has──> (N) Review             [append-only; retraction = a row]
-ArticleVersion (1) ──has──> (0..1) VersionVerification  [append-only; one per version;
-                                                          presence = "verified"]
-ArticleVersion (1) ──has──> (N) Dispute            [own entity; append-only events]
+ArticleVersion (1) ──has──> (N) Evidence
+ArticleVersion (1) ──has──> (1) AnchorRecord
+ArticleVersion (1) ──has──> (0..1) Redaction       [append-only tombstone; admin-only;
+                                                     blanks content at the read layer]
+ArticleVersion (1) ──has──> (N) Review
+ArticleVersion (1) ──has──> (0..1) VersionVerification  [append-only; presence = "verified"]
+ArticleVersion (1) ──has──> (N) Dispute
 Dispute        (1) ──has──> (N) DisputeEvent
 
 Reviewer  (1) ──is a──> Account
 Reviewer  (1) ──writes──> (N) Review | (N) Dispute | (N) VersionVerification
 
-Account(reader) ──saves───> (N) SavedArticle ──> Article        [Sprint 13; (account,article) UNIQUE]
-Account(reader) ──follows─> (N) PublisherFollow ──> Publisher   [Sprint 13; (account,publisher) UNIQUE]
+Account(reader) ──saves───> (N) SavedArticle ──> Article
+Account(reader) ──follows─> (N) PublisherFollow ──> Publisher
 
-Publisher (1) ──has──> (N) ActivityEvent
 AnchorBatch (1) ──has──> (N) AnchorRecord
 ```
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` defines the full contract — **35 paths / 44
-operations; 38 implemented**, all verified against a real database. The 6
-unimplemented are the publisher-dashboard reads. `GET /healthz` / `GET /readyz`
-also exist but are intentionally not in `openapi.json`.
+`packages/shared/openapi.json` — **35 paths / 44 operations; all 44 implemented**,
+verified against a real database. `GET /healthz` / `GET /readyz` also exist but
+are intentionally not in `openapi.json`.
 
 | Method | Path | Auth | Sprint |
 |---|---|---|---|
@@ -178,6 +184,12 @@ also exist but are intentionally not in `openapi.json`.
 | POST | /disputes/{disputeId}/respond | Clerk bearer token | 7 |
 | POST | /disputes/{disputeId}/resolve | Clerk bearer token | 7 |
 | GET | /articles/{articleId}/verification | public | 8 |
+| GET | /publishers/{publisherId} | public | 14 |
+| GET | /publishers/{publisherId}/analytics | any authed | 14 |
+| GET | /publishers/{publisherId}/activity | any authed | 14 |
+| GET | /publishers/{publisherId}/credibility | public | 14 |
+| GET | /publishers/{publisherId}/credibility-history | public | 14 |
+| GET | /publishers/{publisherId}/reviews | any authed | 14 |
 | GET | /publishers/pending-verification | admin (Clerk bearer token) | 9 |
 | POST | /publishers/{publisherId}/verification | admin (Clerk bearer token) | 9 |
 | GET | /reviewers/pending | admin (Clerk bearer token) | 9 |
@@ -192,118 +204,84 @@ also exist but are intentionally not in `openapi.json`.
 | POST | /publisher-follows | reader (Clerk bearer token) | 13 |
 | DELETE | /publisher-follows/{followId} | reader (Clerk bearer token) | 13 |
 
-**Declared but not implemented:** `GET /publishers/{publisherId}`,
-`/analytics`, `/activity`, `/credibility`, `/credibility-history`, `/reviews`
-(the publisher-dashboard slice).
-
 ## Decisions
 
-- 2026-07-08 — Railway as deployment target (Fly.io fallback). **Confirmed 2026-08-26.**
+Append-only. Load-bearing entries kept; see the sprint reports for the rest.
+
+- 2026-07-08 — Railway deploy target (Fly.io fallback). **Confirmed 2026-08-26.**
 - 2026-07-08 — Clerk for auth. **Confirmed 2026-08-26.**
-- 2026-07-08 — Frontend is a strong spec for Publisher and Reader/Verifier flows,
-  not for Reviewer flows or most invariants.
-- 2026-08-26 — Anchor state always shows an explicit badge, never an optimistic
-  "verified." **Enforced in Sprint 4.**
+- 2026-08-26 — Anchor state always shows an explicit badge, never optimistic
+  "verified." **Sprint 4.**
 - 2026-08-26 — Dispute is a separate entity; a publisher may respond but never
-  resolve/withdraw/hide. **Enforced in Sprint 7.**
-- 2026-08-26 — Credibility score v1 uses exactly the 3 factors the frontend
-  shows. Revisit: as a versioned formula change.
-- 2026-08-26 — Reviewer conflict-of-interest is enforced via `publisher_members`
-  (structural). **Enforced in Sprints 6 / 7 / 11 — all share the gate.**
+  resolve/withdraw/hide. **Sprint 7.**
+- 2026-08-26 — Credibility uses exactly the 3 factors the frontend shows;
+  revisit as a versioned formula change.
+- 2026-08-26 — Reviewer COI is structural (`publisher_members`), not the
+  free-text `affiliation`. Shared by `review:create` / `dispute:file` /
+  `version:verify`.
 - 2026-08-26 — Redaction tombstones are fully public; the legal `reason` is not
-  in the public schema. **Enforced in Sprint 12: no endpoint returns `reason`.**
-- 2026-08-26 — Publisher verification: unverified → pending → verified, plus
-  rejected, by an `admin` account. One `admin` role handles both queues.
-- 2026-08-26 — Article review status and anchor status are independent columns.
-- 2026-08-26 — Reader-facing trust status has 6 values, not the 4 the frontend
-  implements.
-- 2026-08-26 — Evidence with `tag=source` is fetched and hashed at attach time
-  (behind a `SourceArchiver` seam; fake only).
-- 2026-08-26 — Reviewer approval has a real admin queue and `admin` role.
-- 2026-08-26 — A publisher can archive at any stage; a never-submitted draft can
-  be hard-deleted.
-- 2026-08-26 — Reviews may be publicly attributed by pseudonym; `accounts.fullName`
-  is never exposed by any public schema. **Extended in Sprint 11 for
-  `version_verifications`' `verifiedBy`.**
-- 2026-08-26 — `/simple-login` and `/reader-portal` are confirmed dead. **Not
-  yet executed.**
-- 2026-08-26 — `/article-edit-history`'s version-history data also gets public
-  routes.
-- 2026-08-26 — Schema entity names confirmed at the Sprint 1 stop point — no
-  renames.
-- 2026-08-26 — Session auth is a Clerk-issued JWT as `Authorization: Bearer`,
-  verified with `@clerk/backend`'s `verifyToken`.
-- 2026-08-26 — `apps/api`'s Fastify instance takes an injectable
-  `SessionVerifier`; the database is never substituted — real Postgres, real
-  migrations.
-- 2026-08-27 — `packages/anchoring`'s canonicalization/hashing spec is frozen.
-- 2026-08-27 — `apps/api` gets CORS via `@fastify/cors`, origin from
-  `CORS_ORIGIN`.
-- 2026-08-27 — `apps/web`'s auth UI handles Clerk's `needs_second_factor` inline
-  in `LoginForm`.
-- 2026-09-08 — Merkle anchoring spec frozen (`docs/ANCHORING.md`).
-- 2026-09-08 — Anchoring runs in a separate `apps/worker` process.
-- 2026-09-08 — A failing anchor batch retries with backoff and, after
-  `ANCHOR_MAX_ATTEMPTS` (default 5), goes terminal `anchor_failed`.
-- 2026-09-08 — Sprint 4 ships only `createFakeAnchorProvider`.
-- 2026-09-08 — `anchorRecordSchema` amended on implementation.
-- 2026-09-08 — `confirmBatch` falls back to `provider.submit()` when
-  `getReceipt()` throws.
-- 2026-09-09 — `POST /versions/{versionId}/evidence` is `multipart/form-data`.
-- 2026-09-09 — Object storage and source-URL archival sit behind injectable
-  `ObjectStore` / `SourceArchiver` seams; fakes only.
-- 2026-09-09 — Evidence attaches only while the owning version is a draft; then
-  frozen (409); `evidence` rows are append-only.
-- 2026-09-09 — The evidence / review / dispute / saved-article / follow list
-  endpoints keyset-paginate on the row `id`, not `created_at` (microsecond vs
-  millisecond).
-- 2026-09-09 — `POST /versions/{versionId}/reviews` requires a non-draft version
-  and an `approved` non-affiliated reviewer. Retraction is an append-only
-  `review_retractions` row (UNIQUE `review_id` → second retract 409).
-- 2026-09-09 — Dispute slice (Sprint 7): `dispute:file` shares the
-  `review:create` gate; `dispute:respond` = membership; `dispute:withdraw` = the
-  filer alone; `dispute:resolve` = the filer or a `role === "admin"` account.
+  in the public schema. **Enforced Sprint 12.**
+- 2026-08-26 — Publisher verification unverified → pending → verified (+
+  rejected) by an `admin` account; one `admin` role, both queues.
+- 2026-08-26 — Reader-facing trust status has 6 values.
+- 2026-08-26 — Reviews/disputes are publicly attributed by pseudonym;
+  `accounts.fullName` is never exposed. Extended Sprint 11 for
+  `version_verifications`.
+- 2026-08-26 — `/simple-login` and `/reader-portal` are dead. **Not yet
+  deleted.**
+- 2026-08-26 — Schema entity names frozen at the Sprint 1 stop point.
+- 2026-08-26 — Session auth is a Clerk JWT `Authorization: Bearer`, verified
+  with `@clerk/backend`.
+- 2026-08-26 — The Fastify instance takes an injectable `SessionVerifier`; the
+  database is never substituted (real Postgres, real migrations).
+- 2026-08-27 — `packages/anchoring` canonicalization/hashing spec frozen
+  (`docs/CANONICALIZATION.md`).
+- 2026-09-08 — Merkle anchoring spec frozen (`docs/ANCHORING.md`); anchoring
+  runs in a separate `apps/worker`; a failing batch retries with backoff then
+  goes terminal `anchor_failed` after `ANCHOR_MAX_ATTEMPTS`.
+- 2026-09-09 — `POST /versions/{id}/evidence` is `multipart/form-data`; object
+  storage + source archival behind fakes; evidence attaches draft-only then
+  frozen (409), rows append-only.
+- 2026-09-09 — Evidence / review / dispute / saved-article / follow lists
+  keyset-paginate on the row `id`, not `created_at`.
+- 2026-09-09 — Dispute slice: `dispute:file` shares the `review:create` gate;
+  `respond` = membership; `withdraw` = the filer alone; `resolve` = the filer or
+  a `role === "admin"` account.
 - 2026-09-09 — `GET /articles/{id}/verification` (Sprint 8): TrustStatus derived
-  at read time with the confirmed precedence; anchor state is not an input. 404
+  at read time with the confirmed precedence; anchor state is not an input; 404
   body is `{ trustStatus: "notfound", queriedId? }`.
 - 2026-09-09 — Credibility score computed at read time; cached column / history
-  table not written.
-- 2026-09-09 — `VerificationResult.tsx` makes a single
-  `GET /articles/{id}/verification` call.
-- 2026-09-09 — Admin queues (Sprint 9): a single `{ type: "admin" }` action
-  gates all four; decisions record author + timestamp, permissive on current
-  state, `404` only an unknown id.
-- 2026-09-09 — Account provisioning (Sprint 10): `POST /publishers` and
-  `POST /reviewers/apply` behind `requireAuth`; lazy `ensureAccount` keyed by
-  the verified `clerkUserId`, first-writer-wins; `publishers.clerk_org_id` is a
-  placeholder.
+  table not written *(history table now written as of Sprint 14; cached column
+  still not)*.
+- 2026-09-09 — Admin queues: a single `{ type: "admin" }` action; decisions
+  record author + timestamp, permissive on current state, `404` only unknown id.
+- 2026-09-10 — Account provisioning (Sprint 10): `POST /publishers` /
+  `/reviewers/apply` behind `requireAuth`; lazy `ensureAccount` keyed by the
+  verified `clerkUserId`, first-writer-wins; placeholder `clerk_org_id`.
 - 2026-09-10 — Version verification (Sprint 11): `POST /versions/{id}/verify`
-  gated by `version:verify` = the `review:create` predicate. Append-only
-  `version_verifications` row, never an `UPDATE` of
-  `article_versions.review_status`. No anchor precondition. `verified` derived
-  at read time; a pre-set `review_status = 'verified'` is still honoured but the
-  API never writes it. No un-verify.
-- 2026-09-10 — Redaction (Sprint 12): `POST /versions/{id}/redaction` gated by
-  `{ type: "admin" }`. Read-layer suppression only — `toApiVersion` nulls the
-  content fields; the `article_versions` row is never modified. Applied on the
-  public version reads. `tombstoneHash` = `contentHash`. Append-only (`0007`)
-  and one-per-version → `409`; `404` a draft/unknown version; the legal
-  `reason` is returned by no endpoint. `articleVersionSchema` content fields
-  loosened to nullable + a `redaction` field added. Does not affect
-  `trustStatus` / credibility, does not suppress evidence / reviews / anchor /
-  disputes.
-- 2026-09-10 — Reader features (Sprint 13): `POST /readers` mirrors Sprint 10
-  (session-only, lazy `accounts` row, `role='reader'`, idempotent, `409`
-  email-clash). The six per-reader endpoints run behind `requireActor`; lists
-  keyset-paginate on the row `id`. The saved list's `trustStatus` is the
-  six-value read-time derivation batched over the page (no N+1); a redacted
-  current version → `title: ""`; a saved article later archived / draft-only
-  drops from the list (bookmark row persists, deletable by id). The follow
-  list's `credibilityScore` is the read-time formula looped per publisher.
-  Re-save / re-follow → `409`; delete-not-owner → `403`. `POST /saved-articles`
-  requires a published version (`404` otherwise). Frontend: `RegisterForm`
-  reader path only; the two list screens stay on mock data (shape mismatch,
-  no restructure). Confirmed with the user.
+  gated by `version:verify` = the `review:create` predicate; append-only
+  `version_verifications` row, never an `UPDATE` of `review_status`; no anchor
+  precondition; `verified` derived at read time; no un-verify.
+- 2026-09-10 — Redaction (Sprint 12): `{ type: "admin" }` gate; read-layer
+  suppression only (`article_versions` never modified); `tombstoneHash` =
+  `contentHash`; append-only (`0007`), one-per-version → `409`; the legal
+  `reason` returned by no endpoint; `articleVersionSchema` content fields
+  loosened to nullable + a `redaction` field.
+- 2026-09-10 — Reader features (Sprint 13): `POST /readers` mirrors Sprint 10;
+  six per-reader endpoints behind `requireActor`; saved-list `trustStatus` is
+  the six-value read-time derivation batched over the page; re-save/re-follow →
+  `409`; `POST /saved-articles` requires a published version.
+- 2026-09-10 — Publisher dashboard (Sprint 14): the three authed reads
+  (`/analytics`, `/activity`, `/reviews`) require only `requireActor` (any
+  account), **not** membership; the other three are public; `404` for an unknown
+  publisher on all six. `credibility_score_history` and `activity_events` are
+  written by a `PublisherEventRecorder` injected into the article / review /
+  dispute / verification services — a credibility point only when the recomputed
+  score changed. The cached `publishers.credibility_score` column stays
+  unwritten. `GET /publishers/{id}/reviews` merges reviews + disputes into one
+  chronological page with a composite `<createdAt>~<kind>~<id>` cursor. Tier
+  ladder: `≥90 Outstanding / ≥75 Excellent / ≥60 Good / ≥40 Fair / else Poor`
+  (revisitable). Confirmed with the user.
 
 ## Open questions
 
@@ -311,79 +289,79 @@ also exist but are intentionally not in `openapi.json`.
 
 ## Known debt and deviations
 
-- **Docker is still never available in this environment**, across thirteen
+- **Docker is still never available in this environment**, across fourteen
   sprints. The `embedded-postgres` prebuilt Windows binaries will not execute
   from the OS temp directory on this host (`STATUS_DLL_INIT_FAILED` — a
   path-based execution policy); copied to a non-temp path (`D:\…`) they run
-  normally. Everything that mattered this sprint (all 8 migrations, seed, 218
+  normally. Everything that mattered this sprint (all 8 migrations, seed, 234
   workspace tests) was verified against a real PostgreSQL 16.14 driven from
   `initdb` / `pg_ctl` on a non-temp path, torn down afterward. What's left:
   confirm CI goes green on GitHub's runners once something is pushed, and
   confirm `docker compose up`.
 - **CI has never run.** Nothing pushed since Sprint 2 added the workflow.
-  **Sprint 13 is awaiting commit** (Sprint 12 was committed).
-- **`SavedArticles.tsx` / `TrustedPublishers.tsx` / `RecentlyVerified.tsx` /
-  `UserStats.tsx` still run on mock data.** The two follow/saved screens have a
-  shape mismatch with the Sprint 1 contract (`trustScore` number vs
-  `trustStatus`, plus `tags` / `lastChecked` / `categories` /
-  `transparencyLevel`); the other two need a search / stats endpoint.
-- **`reader.service.ts` re-implements the trust-status derivation loop** that
-  `verification.service.ts` also has, at list scale (shared inputs, duplicated
-  loop). Extract a shared `deriveTrustStatusForVersions` if a third caller
-  appears.
-- **The follow list's `credibilityScore` is computed per publisher in a loop**
-  (`creditAggregate` is 3 queries each). Fine at year-one follow counts; batch
-  it if a reader can follow hundreds.
-- **A saved article archived after saving silently drops from
-  `GET /saved-articles`** (the list INNER-JOINs to a current published
-  version). The bookmark row persists and is deletable by id.
-- **`articleVersionSchema` content fields are `string | null` for every
-  consumer** (Sprint 12), not only redacted reads. The generated frontend
-  client types changed; non-redacted data never returns `null`.
-- **`GET /publishers/{id}/articles` is not redaction-suppressed.**
-- **`changeSummary` is not blanked on a redacted version.**
-- **Redaction is irreversible**; **no un-redact endpoint**.
+  **Sprint 14 is awaiting commit.**
+- **Phase 5 (Hardening) is entirely unstarted** — rate limiting, N+1/`EXPLAIN`
+  audit, error tracking, backups + restore test, `RUNBOOK.md`, threat pass.
+- **The publisher-dashboard + reader frontend components are hardcoded** and
+  were not wired (would need restructuring the build prompt forbids):
+  `AnalyticsCards`, `CredibilityPanel`, `RecentActivity`, `PublisherProfileCard`,
+  `ReviewsDisputes`, `SavedArticles.tsx`, `TrustedPublishers.tsx`,
+  `RecentlyVerified.tsx`, `UserStats.tsx`.
+- **`activity_events` covers only the `apps/api` write paths** — no
+  `blockchain` event from the worker's anchor confirmation, no `redaction`
+  event from `redactions.service`.
+- **The cached `publishers.credibility_score` / `transparency_level` columns
+  stay unwritten** — reads compute live; `credibility_score_history` is the log.
+- **`GET /publishers/{id}/reviews` fetches `limit+1` per table per page** — a
+  page could under-fill if one publisher gets >`limit` reviews-or-disputes in a
+  single millisecond at a boundary. Not realistic at year-one volume.
+- **`trend` in the credibility breakdown is `liveScore − mostRecentPoint`**, not
+  a fixed 30-day-window delta.
+- **No discriminator on the `GET /publishers/{id}/reviews` union** — a consumer
+  tells a review from a dispute structurally. Sprint 1 schemas are frozen.
+- **The eight recorder hook calls fail the request if their insert fails** (no
+  try/catch). Acceptable — local tables, trivial inserts — revisit in a
+  resilience pass.
 - **Drizzle snapshot drift for the anchoring status indexes is two migrations
   deep** — `schema/anchoring.ts` does not define
   `anchor_records_status_idx` / `anchor_batches_status_idx`. Repay when
   anchoring is next touched.
+- **`articleVersionSchema` content fields are `string | null` for every
+  consumer** (Sprint 12); non-redacted data never returns `null`.
+- **`GET /publishers/{id}/articles` is not redaction-suppressed**;
+  **`changeSummary` not blanked on a redacted version**; **redaction
+  irreversible**; **no un-verify**.
 - **`article_versions.review_status = 'verified'` is dead as an API outcome**
   (Sprint 11); still honoured by the read overlay if present.
 - **No verifier identity in the composed verification read.**
-- **`RegisterForm.tsx` is wired for all three roles but not integration-tested**
-  — needs a live Clerk project.
-- **`reviewerSchema` in `GET /reviewers/pending` has no applicant identity or
-  `applicationReason`.**
+- **`RegisterForm.tsx` wired for all three roles but not integration-tested** —
+  needs a live Clerk project.
+- **`reviewerSchema` in `GET /reviewers/pending` has no applicant identity.**
 - **Admin decision endpoints don't reject a no-op.**
 - **`registryMember` / `versionMatch` trustSummary facts are `true` on every
   200.**
-- **Version-scoped `evidence` / `reviews` in the verification response are
-  fetched with `LIMIT 1000`.**
-- **No dispute frontend**, and **`ReviewsDisputes.tsx` untouched.**
-- **`PublisherCredibility.tsx`'s "Correction History" box keeps mock counts for
-  the no-`articleId` fallback.**
-- **No reviewer-facing write UI** (Sprint 6). `ReviewerPortal.tsx` is a stub.
-- **`Actor.role` is typed `string`, not the `account_role` enum** — only
-  compared `=== "admin"`.
-- **`dispute:file`, `review:create`, and `version:verify` share a switch `case`
-  in `can`.** Correct and documented.
-- **Dispute withdrawal is filer-only, even for an admin.** Deliberate.
+- **Version-scoped `evidence` / `reviews` in the verification response use
+  `LIMIT 1000`.**
+- **No dispute frontend**; **no reviewer-facing write UI**;
+  **`ReviewerPortal.tsx` is a stub.**
+- **`Actor.role` is typed `string`, not the `account_role` enum.**
+- **`dispute:file`, `review:create`, `version:verify` share a switch `case`.**
+- **Dispute withdrawal is filer-only, even for an admin.**
 - **Evidence hashes are not anchored.**
-- **No real `ObjectStore`**, **no endpoint to read a stored evidence blob**.
-- **No real `SourceArchiver`.** Repay with the Phase 5 threat pass.
-- **Frontend evidence write path unwired.**
-- **`apps/api/src/repositories/articles.repository.ts` cursor pagination keys on
-  a millisecond-truncated `created_at` ISO string** (`listPublishedVersions`,
-  `listForPublisher`); the id-keyed lists dodge it.
-- **`apps/api`'s error handler maps only `AppError` / `ZodError` / Fastify
-  schema `validation`** — a `415` / `413` becomes a generic `500`.
-- **No real `AnchorProvider`.** Fake only.
-- **No admin re-queue for `anchor_failed`.** Terminal since Sprint 4.
+- **No real `ObjectStore`**, **no evidence-blob-read endpoint**, **no real
+  `SourceArchiver`**, **frontend evidence write path unwired.**
+- **`articles.repository.ts` cursor pagination keys on a millisecond-truncated
+  `created_at`** (`listPublishedVersions`, `listForPublisher`).
+- **The error handler maps only `AppError` / `ZodError` / Fastify `validation`**
+  — `415` / `413` become a generic `500`.
+- **No real `AnchorProvider`** (fake only); **no admin re-queue for
+  `anchor_failed`.**
 - **No backend search endpoint.**
-- **`apps/web` has no `tsconfig.json`.** Pre-existing (Figma Make export).
-- **`apps/worker` duplicates `apps/api`'s `startTestDb` helper and `db.ts` pool
-  setup** (~30 lines).
-- **`docs/ANCHORING.md`'s leaf-order rule is enforced by an `ORDER BY`, not a
+- **`apps/web` has no `tsconfig.json`** (Figma Make export); `vite build` is its
+  only standing check.
+- **`apps/worker` duplicates `apps/api`'s `startTestDb` + pool setup** (~30
+  lines).
+- **`docs/ANCHORING.md`'s leaf-order rule is enforced by `ORDER BY`, not a
   constraint.**
 - **The `TEST_DATABASE_URL` escape hatch is single-file-parallelism only.**
 - **`/simple-login` and `/reader-portal` still exist in `apps/web`**, dead since
@@ -400,9 +378,9 @@ pnpm install                                   # workspace install
 pnpm typecheck                                 # apps/api + apps/worker + packages/shared + packages/anchoring — 0 errors
 pnpm lint                                      # same four — 0 errors/warnings
 pnpm --filter @sourceit/shared db:migrate      # applies all 8 migrations (0000–0007) for real — verified
-pnpm --filter @sourceit/shared seed            # verified (2 articles, 2 saved articles, 2 follows, 1 redaction)
+pnpm --filter @sourceit/shared seed            # verified (2 articles, 2 saved, 2 follows, 1 redaction, 6 credibility points)
 pnpm --filter @sourceit/anchoring test         # 33/33 — verified
-TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 178/178 — verified (160 prior + 18 reader)
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 194/194 — verified (178 prior + 16 dashboard)
 TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run                        # 7/7 — verified
 pnpm --filter @sourceit/shared openapi:generate && pnpm --filter @sourceit/shared client:generate  # regenerated, not hand-edited
 pnpm dev                                        # runs apps/api + apps/worker in parallel; both need ../../.env
@@ -414,8 +392,7 @@ pnpm --filter @sourceit/web build              # 2204 modules — verified
 `CLERK_PUBLISHABLE_KEY`, `CORS_ORIGIN` (api); the worker reads the same file and
 takes optional `ANCHOR_TICK_MS` / `ANCHOR_MAX_BATCH` / `ANCHOR_MAX_ATTEMPTS` /
 `FAKE_ANCHOR_CONFIRMATIONS`. `apps/api` also accepts injected `objectStore` /
-`sourceArchiver` in `buildApp`; unset, both default to the in-memory / fake
-implementation.
+`sourceArchiver` in `buildApp`.
 
 Still not possible here: `docker compose up` specifically, or Testcontainers
 (both need Docker). On Windows, prefer a Postgres install outside
