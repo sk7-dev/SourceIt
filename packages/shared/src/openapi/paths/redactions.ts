@@ -22,7 +22,7 @@ registry.registerPath({
   path: "/versions/{versionId}/redaction",
   tags: ["Redactions"],
   summary:
-    "Redact a version under legal takedown — admin only, redaction not deletion (build prompt invariant)",
+    "Redact a version under legal takedown — admin only, redaction not deletion (build prompt invariant). Content is suppressed at the read layer; the article_versions row is never modified.",
   security: authed,
   request: {
     params: versionIdParam,
@@ -30,6 +30,9 @@ registry.registerPath({
   },
   responses: {
     201: { description: "Created", content: { "application/json": { schema: redactionSchema } } },
+    401: { description: "No session", content: { "application/json": { schema: errorEnvelopeSchema } } },
     403: { description: "Not an admin", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such published version (unknown, or still a draft)", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    409: { description: "This version is already redacted", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });

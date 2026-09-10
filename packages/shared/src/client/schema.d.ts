@@ -1755,7 +1755,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Redact a version under legal takedown — admin only, redaction not deletion (build prompt invariant) */
+        /** Redact a version under legal takedown — admin only, redaction not deletion (build prompt invariant). Content is suppressed at the read layer; the article_versions row is never modified. */
         post: {
             parameters: {
                 query?: never;
@@ -1780,8 +1780,35 @@ export interface paths {
                         "application/json": components["schemas"]["Redaction"] & Record<string, never>;
                     };
                 };
+                /** @description No session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description Not an admin */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such published version (unknown, or still a draft) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description This version is already redacted */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2332,6 +2359,21 @@ export interface components {
              */
             createdAt: string;
         };
+        Redaction: {
+            /**
+             * Format: uuid
+             * @example b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c
+             */
+            articleVersionId: string;
+            /** @enum {string} */
+            category: "court_order" | "defamation_ruling" | "right_to_erasure";
+            tombstoneHash: string;
+            /**
+             * Format: date-time
+             * @example 2026-04-15T14:30:00Z
+             */
+            redactedAt: string;
+        } | null;
         ArticleVersion: {
             /**
              * Format: uuid
@@ -2347,10 +2389,10 @@ export interface components {
             versionMinor: number;
             /** @example v1.0 */
             versionLabel: string;
-            headline: string;
-            summary: string;
-            content: string;
-            authorName: string;
+            headline: string | null;
+            summary: string | null;
+            content: string | null;
+            authorName: string | null;
             tags: string[] | null;
             sourceLinks: string[] | null;
             /** @enum {string} */
@@ -2375,6 +2417,7 @@ export interface components {
              * @example 2026-04-15T14:30:00Z
              */
             publishedAt: string | null;
+            redaction: components["schemas"]["Redaction"];
         };
         CreateArticleResponse: {
             article: components["schemas"]["Article"];
@@ -2462,21 +2505,6 @@ export interface components {
              */
             anchoredAt: string | null;
         };
-        Redaction: {
-            /**
-             * Format: uuid
-             * @example b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c
-             */
-            articleVersionId: string;
-            /** @enum {string} */
-            category: "court_order" | "defamation_ruling" | "right_to_erasure";
-            tombstoneHash: string;
-            /**
-             * Format: date-time
-             * @example 2026-04-15T14:30:00Z
-             */
-            redactedAt: string;
-        } | null;
         TrustSummaryFacts: {
             registryMember: boolean;
             versionMatch: boolean;

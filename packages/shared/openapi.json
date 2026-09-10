@@ -746,6 +746,41 @@
           "createdAt"
         ]
       },
+      "Redaction": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "articleVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "court_order",
+              "defamation_ruling",
+              "right_to_erasure"
+            ]
+          },
+          "tombstoneHash": {
+            "type": "string"
+          },
+          "redactedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "articleVersionId",
+          "category",
+          "tombstoneHash",
+          "redactedAt"
+        ]
+      },
       "ArticleVersion": {
         "type": "object",
         "properties": {
@@ -772,16 +807,28 @@
             "example": "v1.0"
           },
           "headline": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "summary": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "content": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "authorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "tags": {
             "type": [
@@ -856,6 +903,9 @@
             ],
             "format": "date-time",
             "example": "2026-04-15T14:30:00Z"
+          },
+          "redaction": {
+            "$ref": "#/components/schemas/Redaction"
           }
         },
         "required": [
@@ -877,7 +927,8 @@
           "contentHash",
           "previousHash",
           "createdAt",
-          "publishedAt"
+          "publishedAt",
+          "redaction"
         ]
       },
       "CreateArticleResponse": {
@@ -1175,41 +1226,6 @@
           "blockHeight",
           "chainConfirmations",
           "anchoredAt"
-        ]
-      },
-      "Redaction": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "articleVersionId": {
-            "type": "string",
-            "format": "uuid",
-            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
-          },
-          "category": {
-            "type": "string",
-            "enum": [
-              "court_order",
-              "defamation_ruling",
-              "right_to_erasure"
-            ]
-          },
-          "tombstoneHash": {
-            "type": "string"
-          },
-          "redactedAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2026-04-15T14:30:00Z"
-          }
-        },
-        "required": [
-          "articleVersionId",
-          "category",
-          "tombstoneHash",
-          "redactedAt"
         ]
       },
       "TrustSummaryFacts": {
@@ -3768,7 +3784,7 @@
         "tags": [
           "Redactions"
         ],
-        "summary": "Redact a version under legal takedown — admin only, redaction not deletion (build prompt invariant)",
+        "summary": "Redact a version under legal takedown — admin only, redaction not deletion (build prompt invariant). Content is suppressed at the read layer; the article_versions row is never modified.",
         "security": [
           {
             "bearerAuth": []
@@ -3813,8 +3829,38 @@
               }
             }
           },
+          "401": {
+            "description": "No session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such published version (unknown, or still a draft)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This version is already redacted",
             "content": {
               "application/json": {
                 "schema": {

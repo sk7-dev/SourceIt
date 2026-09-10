@@ -2,6 +2,7 @@ import { z } from "./z";
 import { uuidSchema, isoDatetimeSchema } from "./common";
 import { articleCategorySchema, changeTypeSchema, reviewStatusSchema } from "./enums";
 import { anchorRecordSchema } from "./anchoring";
+import { redactionSchema } from "./redactions";
 
 export const articleSchema = z
   .object({
@@ -19,10 +20,13 @@ export const articleVersionSchema = z
     versionMajor: z.number().int().min(0),
     versionMinor: z.number().int().min(0),
     versionLabel: z.string().openapi({ example: "v1.0" }),
-    headline: z.string(),
-    summary: z.string(),
-    content: z.string(),
-    authorName: z.string(),
+    // null on a redacted version — its content is unservable at the read layer
+    // (Sprint 12). The position, hashes, timestamps, changeType, and reviewStatus
+    // remain, and `redaction` below carries the tombstone.
+    headline: z.string().nullable(),
+    summary: z.string().nullable(),
+    content: z.string().nullable(),
+    authorName: z.string().nullable(),
     tags: z.array(z.string()).nullable(),
     sourceLinks: z.array(z.string().url()).nullable(),
     changeType: changeTypeSchema,
@@ -33,6 +37,9 @@ export const articleVersionSchema = z
     previousHash: z.string().nullable(),
     createdAt: isoDatetimeSchema,
     publishedAt: isoDatetimeSchema.nullable(),
+    // Present (non-null) iff this version has been redacted under a legal
+    // takedown; the content fields above are then null.
+    redaction: redactionSchema.nullable(),
   })
   .openapi("ArticleVersion");
 
