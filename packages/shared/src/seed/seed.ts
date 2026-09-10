@@ -259,8 +259,17 @@ async function seed() {
     },
   ]);
 
-  await db.insert(schema.savedArticles).values([{ accountId: readerAccount!.id, articleId: article!.id }]);
-  await db.insert(schema.publisherFollows).values([{ accountId: readerAccount!.id, publisherId: dailyPlanet!.id }]);
+  await db.insert(schema.savedArticles).values([
+    { accountId: readerAccount!.id, articleId: article!.id },
+    // A saved article whose current version is redacted — the saved list blanks
+    // the title (Sprint 13).
+    { accountId: readerAccount!.id, articleId: redactedArticle!.id },
+  ]);
+  await db.insert(schema.publisherFollows).values([
+    { accountId: readerAccount!.id, publisherId: dailyPlanet!.id },
+    // Following an unverified publisher — `verified: false` in the follow list.
+    { accountId: readerAccount!.id, publisherId: unverifiedTimes!.id },
+  ]);
 
   console.log("seed complete:", {
     accounts: 6,
@@ -270,6 +279,8 @@ async function seed() {
     versions: 4,
     versionVerifications: 1,
     redactions: 1,
+    savedArticles: 2,
+    publisherFollows: 2,
     dispute: 1,
     reviewerPendingId: reviewerPending!.id,
   });
