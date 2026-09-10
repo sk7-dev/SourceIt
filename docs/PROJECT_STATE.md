@@ -1,19 +1,39 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 8  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring + Evidence + Review + Dispute + composed Verification read complete, verified against a real Postgres
+**Last updated:** end of Sprint 10  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring + Evidence + Review + Dispute + composed Verification + Admin queues + Account provisioning complete, verified against a real Postgres
+
+> **Sprints 9 and 10 are both awaiting commit** — the working tree holds both
+> (they don't conflict). Commit plans are in each sprint report.
 
 ## Resume here
 
-`GET /articles/{articleId}/verification` is done — the composed public read the
-whole `/verification-result` page is built around. It returns the article, its
-current version + full published history, the current version's evidence and
-reviewer notes, the publisher (with a **derived** `credibilityScore` /
-`transparencyLevel`), the anchor record, any redaction, a derived 6-value
-**TrustStatus**, and the `trustSummary` facts. Unknown / archived / draft-only /
-non-UUID → `404 { trustStatus: "notfound", queriedId? }` (never the generic
-envelope). `VerificationResult.tsx` is now one request; `TrustSummaryCard` and
-`PublisherCredibility` are wired. No migration, no contract amendment — the
-schema and path existed since Sprint 1. See
-[SPRINT_8_REPORT.md](sprints/SPRINT_8_REPORT.md).
+**Account provisioning** is done (Sprint 10): `POST /publishers` and
+`POST /reviewers/apply` run behind `requireAuth` (valid Clerk session, local
+account optional), lazily create the caller's `accounts` mirror row (identity
+from the request body — `fullName`/`email` were added to both request schemas —
+keyed by the verified `clerkUserId`, `role` from the endpoint, idempotent), then
+create the profile: a publisher with `verification_status = 'unverified'` + a
+placeholder `clerk_org_id = "local_org_<uuid>"` + the caller as an `owner`
+member, or a `reviewers` row with `approval_status = 'pending'`. A person may own
+many publishers; one reviewer profile per account (409). Email uniqueness → 409.
+`RegisterForm.tsx`'s publisher + reviewer paths are wired to Clerk `useSignUp`
+(with an email-code sub-view); the reader path stays a local stub (no endpoint).
+No migration. See [SPRINT_10_REPORT.md](sprints/SPRINT_10_REPORT.md).
+
+Before Sprint 10: the two **admin decision queues** (Sprint 9) —
+`GET /publishers/pending-verification` + `POST /publishers/{id}/verification`
+(`verified`/`rejected`) and `GET /reviewers/pending` +
+`POST /reviewers/{id}/decision` (`approved`/`rejected`), gated by a single
+`{ type: "admin" }` authorization action; decisions record author + timestamp,
+permissive on current state, 404 only an unknown id. Backend + tests only.
+See [SPRINT_9_REPORT.md](sprints/SPRINT_9_REPORT.md).
+
+Before Sprint 9: `GET /articles/{articleId}/verification` (Sprint 8) — the
+composed public read behind `/verification-result`: article + current version +
+history + evidence + reviewer notes + publisher (derived `credibilityScore` /
+`transparencyLevel`) + anchor + redaction + derived 6-value **TrustStatus** +
+`trustSummary` facts; `404 { trustStatus: "notfound", queriedId? }` for unknown /
+archived / draft-only / non-UUID. `VerificationResult.tsx` is one request;
+`TrustSummaryCard` + `PublisherCredibility` wired.
 
 **TrustStatus** precedence (confirmed 2026-09-09):
 `notfound > disputed > publisher_unverified > authentic_under_review > updated >
@@ -34,12 +54,23 @@ article resolves to `authentic_under_review` / `disputed` /
 `publisher_unverified`. The derivation and the frontend handle all six; the two
 top values light up once version verification is built.
 
-Still mock / unbuilt, deliberately or blocked, after Sprint 8:
+Still mock / unbuilt, deliberately or blocked, after Sprint 10:
 
-- **No "verify this version" transition**, and no publisher-verification /
-  reviewer-approval decision endpoints — the Sprint 1 schema and the `admin`
-  role are ready for them. This is the natural next slice (makes
-  `authentic`/`updated` reachable, lights up both admin queues).
+- **No "verify this version" transition** — `pending_review → verified` has no
+  contract path and the append-only trigger forbids `UPDATE` on a non-draft
+  version, so `authentic`/`updated` TrustStatus are unreachable for API-created
+  data. Needs its own contract + trigger/schema decision.
+- **Reader account provisioning unbuilt** — no endpoint; `RegisterForm`'s reader
+  path is a local stub; readers get no `accounts` row. Blocks the reader-features
+  slice (saved-articles, publisher-follows).
+- **No real Clerk Organization** — `publishers.clerk_org_id` is a generated
+  `local_org_<uuid>` placeholder; `publisher_members` is our own table, not
+  synced to Clerk. A real Organization create/sync plugs in at that column.
+- **`ensureAccount` is first-writer-wins on `role`** — one `accounts` row, one
+  role; a reviewer who later registers a publisher keeps role `reviewer`.
+- **`reviewerSchema` in the approval queue is identity-free** — no applicant
+  name/email, no `applicationReason`. An admin decides on affiliation +
+  expertise alone. Frozen Sprint 1 shape; enrich when a real admin UI is built.
 - **`redaction` always `null` in practice** — no redaction rows, no redaction
   endpoint; content-blanking for a redacted version is the unbuilt redaction
   slice. The verification field is wired and will populate when it lands.
@@ -66,6 +97,8 @@ Still mock / unbuilt, deliberately or blocked, after Sprint 8:
 | 6 | Review slice: GET/POST /versions/{id}/reviews + POST /reviews/{id}/retract, approved-reviewer gate, structural COI, append-only retraction, frontend reviewer notes | Complete with carryover | [SPRINT_6_REPORT.md](sprints/SPRINT_6_REPORT.md) |
 | 7 | Dispute slice: 5 endpoints (file / list / get / respond / resolve), publisher-cannot-suppress enforced, terminal lifecycle, derived status, append-only — backend + tests only | Complete with carryover | [SPRINT_7_REPORT.md](sprints/SPRINT_7_REPORT.md) |
 | 8 | Composed GET /articles/{id}/verification: article + version history + evidence + reviews + publisher + anchor + redaction + derived TrustStatus + trustSummary; read-time credibility formula; VerificationResult on one call, TrustSummaryCard + PublisherCredibility wired | Complete with carryover | [SPRINT_8_REPORT.md](sprints/SPRINT_8_REPORT.md) |
+| 9 | Admin decision queues: GET/POST publisher-verification and reviewer-approval, single `admin` authz action, decisions recorded; backend + tests only | Complete with carryover | [SPRINT_9_REPORT.md](sprints/SPRINT_9_REPORT.md) |
+| 10 | Account provisioning: POST /publishers + POST /reviewers/apply, lazy `accounts` materialization behind `requireAuth`, placeholder `clerk_org_id`, RegisterForm publisher+reviewer paths wired to Clerk `useSignUp` | Complete with carryover | [SPRINT_10_REPORT.md](sprints/SPRINT_10_REPORT.md) |
 
 ## Current domain model
 
@@ -129,7 +162,7 @@ unblocked.
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` defines the full contract (33 endpoints); 21 are
+`packages/shared/openapi.json` defines the full contract (33 endpoints); 27 are
 implemented, all verified against a real database. `GET /healthz` / `GET /readyz`
 also exist but are intentionally not in `openapi.json`.
 
@@ -157,6 +190,12 @@ also exist but are intentionally not in `openapi.json`.
 | POST | /disputes/{disputeId}/respond | Clerk bearer token | 7 |
 | POST | /disputes/{disputeId}/resolve | Clerk bearer token | 7 |
 | GET | /articles/{articleId}/verification | public | 8 |
+| GET | /publishers/pending-verification | admin (Clerk bearer token) | 9 |
+| POST | /publishers/{publisherId}/verification | admin (Clerk bearer token) | 9 |
+| GET | /reviewers/pending | admin (Clerk bearer token) | 9 |
+| POST | /reviewers/{reviewerId}/decision | admin (Clerk bearer token) | 9 |
+| POST | /publishers | Clerk session (account materialized on first call) | 10 |
+| POST | /reviewers/apply | Clerk session (account materialized on first call) | 10 |
 
 ## Decisions
 
@@ -314,6 +353,29 @@ also exist but are intentionally not in `openapi.json`.
   them. Five service mappers (`toApiArticle/Version/Evidence/Review/Dispute`)
   are exported for the verification service to reuse so the composed response
   can't drift. Confirmed with the user.
+- 2026-09-09 — Admin queues (Sprint 9): a single `{ type: "admin" }`
+  authorization action (`actor.role === "admin"`) gates
+  `GET /publishers/pending-verification`, `POST /publishers/{id}/verification`,
+  `GET /reviewers/pending`, `POST /reviewers/{id}/decision`. Decision endpoints
+  record `verified_by_account_id` / `approved_by_account_id` and set/clear the
+  matching timestamp, are **permissive on the current state** (verify / reject /
+  revoke; no `409` on a no-op), and `404` only an unknown id — "rejected is
+  terminal" (2026-08-26) binds the applicant, not the admin. Backend + tests
+  only; contract amended to add `404` to the two decision POSTs. Revisit: when a
+  real admin UI needs a richer reviewer payload (identity, `applicationReason`).
+- 2026-09-09 — Account provisioning (Sprint 10): `POST /publishers` and
+  `POST /reviewers/apply` run behind `requireAuth` (valid Clerk session, no
+  local account required) and lazily materialize the caller's `accounts` mirror
+  row via `ensureAccount` — **keyed by the verified `clerkUserId`**, identity
+  (`fullName`/`email`) taken from the request body (both request schemas
+  amended to carry them), `role` from which endpoint was called, idempotent
+  (first-writer-wins; a later call never overwrites `role`). Email uniqueness
+  across a different `clerkUserId` → `409`. `publishers.clerk_org_id` is a
+  generated `local_org_<uuid>` placeholder — real Clerk Organization
+  create/sync deferred behind the column, the same seam call as
+  `AnchorProvider`/`ObjectStore`. A person may own many publishers; one
+  reviewer profile per account (`409` on a repeat apply). Confirmed with the
+  user. Revisit: reader provisioning, real Clerk orgs, multi-role accounts.
 
 ## Open questions
 
@@ -326,9 +388,9 @@ also exist but are intentionally not in `openapi.json`.
 
 ## Known debt and deviations
 
-- **Docker is still never available in this environment**, across eight sprints.
+- **Docker is still never available in this environment**, across ten sprints.
   `docker compose up`, the Testcontainers test path, and CI have never actually
-  run here. Everything that mattered (all 6 migrations, seed, all 21 endpoints,
+  run here. Everything that mattered (all 6 migrations, seed, all 27 endpoints,
   the worker's full pipeline, the frontend flow) was verified via a scratch
   `embedded-postgres` outside the repo, torn down after. On Windows, a killed
   `embedded-postgres` launcher can leave an orphaned `postgres.exe` holding the
@@ -336,9 +398,19 @@ also exist but are intentionally not in `openapi.json`.
   `Get-NetTCPConnection -LocalPort <port>`. What's left: confirm CI goes green on
   GitHub's runners once something is pushed, and confirm `docker compose up`.
 - **CI has never run.** Unchanged — nothing pushed since Sprint 2 added the
-  workflow. The dispute + verification suites are picked up by the root
-  `lint`/`typecheck`/`test` scripts, but the workflow file itself still hasn't
-  been reviewed for whether it runs them.
+  workflow. The dispute + verification + admin + registration suites are picked
+  up by the root `lint`/`typecheck`/`test` scripts, but the workflow file
+  itself still hasn't been reviewed for whether it runs them. **Sprints 9 and 10
+  are both awaiting commit.**
+- **`RegisterForm.tsx` is wired but not integration-tested** — driving Clerk's
+  headless `useSignUp` needs a live Clerk project (the one faked dependency).
+  The API side is fully covered; the frontend follows `LoginForm`'s pattern.
+- **`reviewerSchema` in `GET /reviewers/pending` has no applicant identity or
+  `applicationReason`.** An admin approves on affiliation + expertise alone.
+  Frozen Sprint 1 shape; enrich when a real admin UI is built.
+- **Admin decision endpoints don't reject a no-op** (verifying an
+  already-verified publisher just re-writes the status). Idempotent-ish by
+  design; add a `409` only if a strict state machine is ever needed.
 - **`authentic` / `updated` TrustStatus unreachable for API-created data** — no
   version-verification transition exists; the append-only trigger blocks
   `UPDATE` on a non-draft version. Real published articles resolve to
@@ -422,7 +494,7 @@ pnpm lint                                      # same four — 0 errors/warnings
 pnpm --filter @sourceit/shared db:migrate      # applies all 6 migrations for real — verified
 pnpm --filter @sourceit/shared seed            # verified against a real database
 pnpm --filter @sourceit/anchoring test         # 33/33 — verified
-TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 110/110 — verified (87 prior + 12 trust unit + 11 verification)
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 132/132 — verified (122 prior + 10 registration)
 TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run                        # 7/7 — verified
 pnpm --filter @sourceit/shared openapi:generate && pnpm --filter @sourceit/shared client:generate  # regenerated, not hand-edited
 pnpm dev                                        # runs apps/api + apps/worker in parallel; both need ../../.env
