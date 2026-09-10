@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Bookmark, Share2, AlertCircle, CheckCircle, Menu } from "lucide-react";
+import { ArrowLeft, Bookmark, Share2, AlertCircle, Menu } from "lucide-react";
 import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
 import UserSidebar from "../components/user/UserSidebar";
 import TrustSummaryCard from "../components/verification/TrustSummaryCard";
 import VersionHistory from "../components/verification/VersionHistory";
@@ -14,82 +13,47 @@ import { useNavigate, useParams } from "react-router";
 import { publicApiClient } from "../lib/apiClient";
 import type { components } from "@sourceit/shared/client";
 
-type ArticleVersion = components["schemas"]["ArticleVersion"];
-type AnchorRecord = components["schemas"]["AnchorRecord"];
-type Evidence = components["schemas"]["Evidence"];
-type Review = components["schemas"]["Review"];
+type VerificationResultData = components["schemas"]["VerificationResult"];
 
-// Wired for the sub-parts the backend can back so far: the article itself and
-// its public version history (GET /articles/{id}, GET /articles/{id}/versions),
-// the current version's anchor state (GET /versions/{id}/anchor), its evidence
-// list (GET /versions/{id}/evidence), and its reviewer notes
-// (GET /versions/{id}/reviews). TrustSummaryCard and PublisherCredibility still
-// need the composed GET /articles/{id}/verification endpoint (Dispute data +
-// the trust computation), which doesn't exist yet — they stay on mock data
-// whether or not an articleId is present.
+// One composed call — GET /articles/{id}/verification returns the article, its
+// current version + full history, evidence, reviewer notes, the publisher (with
+// the derived credibility score / transparency level), the anchor record, any
+// redaction tombstone, the 6-value TrustStatus, and the "why this result" facts.
+// Every panel below is fed from it; with no articleId in the URL each panel
+// falls back to its own mock.
 export default function VerificationResult() {
   const navigate = useNavigate();
   const { articleId } = useParams();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [versions, setVersions] = useState<ArticleVersion[] | null>(null);
-  const [anchor, setAnchor] = useState<AnchorRecord | null>(null);
-  const [evidence, setEvidence] = useState<Evidence[] | null>(null);
-  const [reviews, setReviews] = useState<Review[] | null>(null);
+  const [result, setResult] = useState<VerificationResultData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!articleId) return;
     setLoadError(null);
-    setVersions(null);
-    setAnchor(null);
-    setEvidence(null);
-    setReviews(null);
+    setResult(null);
 
     publicApiClient
-      .GET("/articles/{articleId}", { params: { path: { articleId } } })
+      .GET("/articles/{articleId}/verification", { params: { path: { articleId } } })
       .then(({ data, error }) => {
         if (error || !data) {
           setLoadError("This article is not registered in SourceIt's verification system");
+          return;
         }
-      });
-
-    publicApiClient
-      .GET("/articles/{articleId}/versions", { params: { path: { articleId } } })
-      .then(({ data }) => {
-        if (!data) return;
-        setVersions(data.items);
-        const currentVersionId = data.items[0]?.id;
-        if (currentVersionId) {
-          publicApiClient
-            .GET("/versions/{versionId}/anchor", { params: { path: { versionId: currentVersionId } } })
-            .then(({ data: anchorData }) => {
-              if (anchorData) setAnchor(anchorData);
-            });
-          publicApiClient
-            .GET("/versions/{versionId}/evidence", { params: { path: { versionId: currentVersionId } } })
-            .then(({ data: evidenceData }) => {
-              if (evidenceData) setEvidence(evidenceData.items);
-            });
-          publicApiClient
-            .GET("/versions/{versionId}/reviews", { params: { path: { versionId: currentVersionId } } })
-            .then(({ data: reviewsData }) => {
-              if (reviewsData) setReviews(reviewsData.items);
-            });
-        }
+        setResult(data);
       });
   }, [articleId]);
 
-  const currentVersion = versions?.[0] ?? null;
   const subtitle = articleId
-    ? loadError ?? currentVersion?.headline ?? "Loading…"
+    ? loadError ?? result?.currentVersion.headline ?? "Loading…"
     : "Climate Change Impact on Global Agriculture";
 
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
-      <UserSidebar 
-        activeTab="verify" 
+      <UserSidebar
+        activeTab="verify"
         isCollapsed={isSidebarCollapsed}
         onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         isMobileOpen={isMobileMenuOpen}
@@ -111,7 +75,7 @@ export default function VerificationResult() {
               >
                 <Menu className="w-6 h-6" />
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -159,28 +123,28 @@ export default function VerificationResult() {
           ) : (
             <>
               {/* Trust Summary */}
-              <TrustSummaryCard />
+              <TrustSummaryCard result={articleId ? result : null} />
 
               {/* Publisher Credibility & Evidence - Responsive Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <PublisherCredibility />
-                <EvidenceSection evidence={articleId ? evidence : null} />
+                <PublisherCredibility publisher={articleId ? result?.publisher ?? null : null} />
+                <EvidenceSection evidence={articleId ? result?.evidence ?? null : null} />
               </div>
 
               {/* Version History */}
-              <VersionHistory versions={articleId ? (versions ?? []) : null} />
+              <VersionHistory versions={articleId ? (result?.versionHistory ?? []) : null} />
 
               {/* Comparison Section */}
               <ComparisonSection />
 
               {/* Reviewer Notes */}
-              <ReviewerNotes reviews={articleId ? reviews : null} />
+              <ReviewerNotes reviews={articleId ? result?.reviews ?? null : null} />
 
               {/* Blockchain Integrity Record */}
               <IntegrityRecord
-                anchor={articleId ? anchor : null}
-                versionCount={versions?.length ?? 0}
-                previousHash={currentVersion?.previousHash ?? null}
+                anchor={articleId ? result?.anchorRecord ?? null : null}
+                versionCount={result?.versionHistory.length ?? 0}
+                previousHash={result?.currentVersion.previousHash ?? null}
               />
             </>
           )}
