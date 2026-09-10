@@ -8,13 +8,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # Reads the pnpm version from package.json's "packageManager" field —
+      # do not also set `version:` here, pnpm/action-setup@v4 errors on both.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -25,7 +25,7 @@ jobs:
 
       - run: pnpm typecheck
 
-      # apps/api's integration tests spin up a disposable Postgres via
-      # Testcontainers — GitHub's ubuntu-latest runners have Docker available
-      # by default, no extra setup needed.
+      # apps/api's and apps/worker's integration tests spin up a disposable
+      # Postgres via Testcontainers — GitHub's ubuntu-latest runners have Docker
+      # available by default, no extra setup needed.
       - run: pnpm test
