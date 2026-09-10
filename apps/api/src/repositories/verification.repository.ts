@@ -30,8 +30,22 @@ export function createVerificationRepository(db: typeof Db) {
     return new Set(rows.map((r) => r.articleVersionId));
   }
 
+  // Which of these versions have a version_verifications row — i.e. a reviewer
+  // has verified them (Sprint 11). `article_versions.review_status` itself never
+  // reaches 'verified' in the database; this overlay is where 'verified'
+  // originates for the read path.
+  async function findVerifiedVersionIds(versionIds: string[]): Promise<Set<string>> {
+    if (versionIds.length === 0) return new Set();
+    const rows = await db
+      .select({ articleVersionId: schema.versionVerifications.articleVersionId })
+      .from(schema.versionVerifications)
+      .where(inArray(schema.versionVerifications.articleVersionId, versionIds));
+    return new Set(rows.map((r) => r.articleVersionId));
+  }
+
   return {
     findVersionIdsWithOpenDispute,
+    findVerifiedVersionIds,
 
     async findArticle(articleId: string) {
       const [row] = await db
@@ -125,12 +139,17 @@ export function createVerificationRepository(db: typeof Db) {
       }
       if (byArticle.size === 0) return [];
 
-      const openDisputeVersionIds = await findVersionIdsWithOpenDispute(
-        [...byArticle.values()].map((e) => e.current.id),
-      );
+      const currentVersionIds = [...byArticle.values()].map((e) => e.current.id);
+      const [openDisputeVersionIds, verifiedVersionIds] = await Promise.all([
+        findVersionIdsWithOpenDispute(currentVersionIds),
+        findVerifiedVersionIds(currentVersionIds),
+      ]);
 
       return [...byArticle.values()].map((e) => ({
-        currentReviewStatus: e.current.reviewStatus,
+        // 'verified' is derived from version_verifications, not stored on the
+        // version — so the credibility formula's verifiedRatio reflects reviewer
+        // verifications, the same as the frontend's "verified articles +10".
+        currentReviewStatus: verifiedVersionIds.has(e.current.id) ? "verified" : e.current.reviewStatus,
         publishedVersionCount: e.count,
         hasOpenDispute: openDisputeVersionIds.has(e.current.id),
       }));

@@ -52,26 +52,44 @@ export function createVerificationService(
       const publisher = await repo.findPublisher(article.publisherId);
       if (!publisher) return null;
 
-      const [evidenceRows, reviewRows, anchorRow, redaction, openDisputeCount, creditArticles] =
-        await Promise.all([
-          evidenceRepo.listEvidence(currentVersion.id, undefined, ALL),
-          reviewsRepo.listReviews(currentVersion.id, undefined, ALL),
-          anchorRepo.findAnchorForVersion(currentVersion.id),
-          repo.findRedactionForVersion(currentVersion.id),
-          repo.countOpenDisputesForVersion(currentVersion.id),
-          repo.creditAggregate(article.publisherId),
-        ]);
+      const [
+        evidenceRows,
+        reviewRows,
+        anchorRow,
+        redaction,
+        openDisputeCount,
+        creditArticles,
+        verifiedVersionIds,
+      ] = await Promise.all([
+        evidenceRepo.listEvidence(currentVersion.id, undefined, ALL),
+        reviewsRepo.listReviews(currentVersion.id, undefined, ALL),
+        anchorRepo.findAnchorForVersion(currentVersion.id),
+        repo.findRedactionForVersion(currentVersion.id),
+        repo.countOpenDisputesForVersion(currentVersion.id),
+        repo.creditAggregate(article.publisherId),
+        repo.findVerifiedVersionIds(versions.map((v) => v.id)),
+      ]);
 
       // Every submitted version gets a `pending` anchor record at submit time;
       // one with none is not fully registered — nothing to verify.
       if (!anchorRow) return null;
+
+      // 'verified' is not stored on the version — a version_verifications row
+      // (Sprint 11) is the only source of it. Overlay it onto every version the
+      // response reports so currentVersion, versionHistory, and the TrustStatus
+      // input never disagree within one payload.
+      const withVerified = <T extends { id: string; reviewStatus: string }>(v: T) =>
+        verifiedVersionIds.has(v.id) ? { ...v, reviewStatus: "verified" } : v;
+      const currentReviewStatus = verifiedVersionIds.has(currentVersion.id)
+        ? "verified"
+        : currentVersion.reviewStatus;
 
       const publisherVerified = publisher.verificationStatus === "verified";
       const isFirstVersion = currentVersion.versionMajor === 1 && currentVersion.versionMinor === 0;
 
       const trustStatus = deriveTrustStatus({
         publisherVerified,
-        currentReviewStatus: currentVersion.reviewStatus as "pending_review" | "verified",
+        currentReviewStatus: currentReviewStatus as "pending_review" | "verified",
         isFirstVersion,
         openDisputeCount,
       });
@@ -80,8 +98,8 @@ export function createVerificationService(
 
       return {
         article: toApiArticle(article),
-        currentVersion: toApiVersion(currentVersion),
-        versionHistory: versions.map(toApiVersion),
+        currentVersion: toApiVersion(withVerified(currentVersion)),
+        versionHistory: versions.map((v) => toApiVersion(withVerified(v))),
         evidence: evidenceRows.items.map(toApiEvidence),
         reviews: reviewRows.items.map(toApiReview),
         publisher: {
