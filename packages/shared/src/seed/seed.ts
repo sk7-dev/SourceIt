@@ -184,6 +184,13 @@ async function seed() {
     { articleVersionId: v1!.id, reviewerId: reviewerApproved!.id, type: "confirmation", comment: "Verified against the public council minutes; figures match." },
   ]);
 
+  // v1.0 verified through the real Sprint 11 mechanism — an approved reviewer
+  // with no structural affiliation to The Daily Planet. (v2.0 is left
+  // unverified: it carries an open dispute.)
+  await db.insert(schema.versionVerifications).values([
+    { articleVersionId: v1!.id, reviewerId: reviewerApproved!.id },
+  ]);
+
   const [dispute] = await db
     .insert(schema.disputes)
     .values([
@@ -216,6 +223,7 @@ async function seed() {
     reviewers: 2,
     articles: 1,
     versions: 3,
+    versionVerifications: 1,
     dispute: 1,
     reviewerPendingId: reviewerPending!.id,
   });
