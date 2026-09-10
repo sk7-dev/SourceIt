@@ -3,8 +3,10 @@ import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import type { Actor, createAuthorization } from "../auth/can";
 import type { createArticlesRepository } from "../repositories/articles.repository";
 import { versionLabel } from "../repositories/articles.repository";
+import type { createRedactionsRepository } from "../repositories/redactions.repository";
 
 type ArticlesRepo = ReturnType<typeof createArticlesRepository>;
+type RedactionsRepo = ReturnType<typeof createRedactionsRepository>;
 type Authorization = ReturnType<typeof createAuthorization>;
 
 export interface CreateArticleInput {
@@ -31,38 +33,54 @@ export interface CreateVersionInput {
   submit: boolean;
 }
 
-export function toApiVersion(version: {
-  id: string;
-  articleId: string;
-  versionMajor: number;
-  versionMinor: number;
-  headline: string;
-  summary: string;
-  content: string;
-  authorName: string;
-  tags: string[] | null;
-  sourceLinks: string[] | null;
-  changeType: string;
-  changeSummary: string | null;
-  reviewStatus: string;
-  previousVersionId: string | null;
-  contentHash: string | null;
-  previousHash: string | null;
-  createdAt: Date;
-  publishedAt: Date | null;
-}) {
+// The tombstone shape `toApiVersion` needs to blank a redacted version and
+// attach its `redaction` — a subset of redactions.repository's RedactionTombstone.
+export interface VersionRedaction {
+  category: string;
+  tombstoneHash: string;
+  redactedAt: Date;
+}
+
+export function toApiVersion(
+  version: {
+    id: string;
+    articleId: string;
+    versionMajor: number;
+    versionMinor: number;
+    headline: string;
+    summary: string;
+    content: string;
+    authorName: string;
+    tags: string[] | null;
+    sourceLinks: string[] | null;
+    changeType: string;
+    changeSummary: string | null;
+    reviewStatus: string;
+    previousVersionId: string | null;
+    contentHash: string | null;
+    previousHash: string | null;
+    createdAt: Date;
+    publishedAt: Date | null;
+  },
+  // Sprint 12: when set, this version has been redacted under a legal takedown —
+  // its content is suppressed here at the read layer (the article_versions row
+  // is never modified). Position, hashes, timestamps, changeType, reviewStatus
+  // remain; `redaction` carries the public tombstone.
+  redaction?: VersionRedaction | null,
+) {
+  const redacted = redaction != null;
   return {
     id: version.id,
     articleId: version.articleId,
     versionMajor: version.versionMajor,
     versionMinor: version.versionMinor,
     versionLabel: versionLabel(version.versionMajor, version.versionMinor),
-    headline: version.headline,
-    summary: version.summary,
-    content: version.content,
-    authorName: version.authorName,
-    tags: version.tags,
-    sourceLinks: version.sourceLinks,
+    headline: redacted ? null : version.headline,
+    summary: redacted ? null : version.summary,
+    content: redacted ? null : version.content,
+    authorName: redacted ? null : version.authorName,
+    tags: redacted ? null : version.tags,
+    sourceLinks: redacted ? null : version.sourceLinks,
     changeType: version.changeType,
     changeSummary: version.changeSummary,
     reviewStatus: version.reviewStatus,
@@ -71,6 +89,14 @@ export function toApiVersion(version: {
     previousHash: version.previousHash,
     createdAt: version.createdAt.toISOString(),
     publishedAt: version.publishedAt?.toISOString() ?? null,
+    redaction: redaction
+      ? {
+          articleVersionId: version.id,
+          category: redaction.category,
+          tombstoneHash: redaction.tombstoneHash,
+          redactedAt: redaction.redactedAt.toISOString(),
+        }
+      : null,
   };
 }
 
@@ -83,7 +109,11 @@ export function toApiArticle(article: { id: string; publisherId: string; categor
   };
 }
 
-export function createArticlesService(repo: ArticlesRepo, authz: Authorization) {
+export function createArticlesService(
+  repo: ArticlesRepo,
+  redactionsRepo: RedactionsRepo,
+  authz: Authorization,
+) {
   return {
     async createArticle(actor: Actor, input: CreateArticleInput) {
       await authz.assertCan(actor, { type: "article:createDraft", publisherId: input.publisherId });
@@ -144,7 +174,11 @@ export function createArticlesService(repo: ArticlesRepo, authz: Authorization) 
       const article = await repo.findArticleById(articleId);
       if (!article || article.archivedAt) throw new NotFoundError("Article not found");
       const { items, nextCursor } = await repo.listPublishedVersions(articleId, cursor, limit);
-      return { items: items.map(toApiVersion), nextCursor };
+      const redactions = await redactionsRepo.findForVersions(items.map((v) => v.id));
+      return {
+        items: items.map((v) => toApiVersion(v, redactions.get(v.id) ?? null)),
+        nextCursor,
+      };
     },
 
     async getVersion(articleId: string, versionId: string, actor: Actor | null) {
@@ -159,9 +193,11 @@ export function createArticlesService(repo: ArticlesRepo, authz: Authorization) 
           // is concerned — 404, not 403, so its existence isn't leaked.
           throw new NotFoundError("Version not found");
         }
+        // A draft cannot be redacted (it isn't public); skip the lookup.
+        return toApiVersion(version);
       }
 
-      return toApiVersion(version);
+      return toApiVersion(version, await redactionsRepo.findByVersionId(versionId));
     },
 
     async createVersion(actor: Actor, articleId: string, input: CreateVersionInput) {

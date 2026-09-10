@@ -80,8 +80,18 @@ export function createVerificationRepository(db: typeof Db) {
         .orderBy(desc(schema.articleVersions.versionMajor), desc(schema.articleVersions.versionMinor));
     },
 
-    async findRedactionForVersion(versionId: string) {
-      const [row] = await db
+    // Public tombstone fields (never the legal `reason`) for a set of versions,
+    // keyed by version id — the composed read overlays these onto currentVersion
+    // and every versionHistory entry, and derives its top-level `redaction` from
+    // the current version's entry (Sprint 12).
+    async findRedactionsForVersions(versionIds: string[]) {
+      if (versionIds.length === 0) {
+        return new Map<
+          string,
+          { articleVersionId: string; category: string; tombstoneHash: string; redactedAt: Date }
+        >();
+      }
+      const rows = await db
         .select({
           articleVersionId: schema.redactions.articleVersionId,
           category: schema.redactions.category,
@@ -89,9 +99,8 @@ export function createVerificationRepository(db: typeof Db) {
           redactedAt: schema.redactions.redactedAt,
         })
         .from(schema.redactions)
-        .where(eq(schema.redactions.articleVersionId, versionId))
-        .limit(1);
-      return row ?? null;
+        .where(inArray(schema.redactions.articleVersionId, versionIds));
+      return new Map(rows.map((r) => [r.articleVersionId, r]));
     },
 
     async countOpenDisputesForVersion(versionId: string) {

@@ -56,7 +56,7 @@ export function createVerificationService(
         evidenceRows,
         reviewRows,
         anchorRow,
-        redaction,
+        redactionMap,
         openDisputeCount,
         creditArticles,
         verifiedVersionIds,
@@ -64,11 +64,13 @@ export function createVerificationService(
         evidenceRepo.listEvidence(currentVersion.id, undefined, ALL),
         reviewsRepo.listReviews(currentVersion.id, undefined, ALL),
         anchorRepo.findAnchorForVersion(currentVersion.id),
-        repo.findRedactionForVersion(currentVersion.id),
+        repo.findRedactionsForVersions(versions.map((v) => v.id)),
         repo.countOpenDisputesForVersion(currentVersion.id),
         repo.creditAggregate(article.publisherId),
         repo.findVerifiedVersionIds(versions.map((v) => v.id)),
       ]);
+
+      const currentRedaction = redactionMap.get(currentVersion.id) ?? null;
 
       // Every submitted version gets a `pending` anchor record at submit time;
       // one with none is not fully registered — nothing to verify.
@@ -98,8 +100,10 @@ export function createVerificationService(
 
       return {
         article: toApiArticle(article),
-        currentVersion: toApiVersion(withVerified(currentVersion)),
-        versionHistory: versions.map((v) => toApiVersion(withVerified(v))),
+        currentVersion: toApiVersion(withVerified(currentVersion), currentRedaction),
+        versionHistory: versions.map((v) =>
+          toApiVersion(withVerified(v), redactionMap.get(v.id) ?? null),
+        ),
         evidence: evidenceRows.items.map(toApiEvidence),
         reviews: reviewRows.items.map(toApiReview),
         publisher: {
@@ -115,12 +119,12 @@ export function createVerificationService(
           createdAt: publisher.createdAt.toISOString(),
         },
         anchorRecord: toApiAnchor(anchorRow),
-        redaction: redaction
+        redaction: currentRedaction
           ? {
-              articleVersionId: redaction.articleVersionId,
-              category: redaction.category,
-              tombstoneHash: redaction.tombstoneHash,
-              redactedAt: redaction.redactedAt.toISOString(),
+              articleVersionId: currentRedaction.articleVersionId,
+              category: currentRedaction.category,
+              tombstoneHash: currentRedaction.tombstoneHash,
+              redactedAt: currentRedaction.redactedAt.toISOString(),
             }
           : null,
         trustStatus,

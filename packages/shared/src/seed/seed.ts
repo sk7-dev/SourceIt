@@ -214,6 +214,51 @@ async function seed() {
     { publisherId: dailyPlanet!.id, type: "correction", title: "Responded to dispute with a correction commitment", articleId: article!.id, articleVersionId: v2!.id },
   ]);
 
+  // A second Daily Planet article whose sole published version has been redacted
+  // under a court order (Sprint 12) — the content is unservable on every public
+  // read, but the tombstone (position, hash, timestamp, category) remains.
+  const [redactedArticle] = await db
+    .insert(schema.articles)
+    .values([{ publisherId: dailyPlanet!.id, category: "politics" }])
+    .returning();
+
+  const redactedContent = "A report naming a local official in connection with a sealed investigation.";
+  const redactedHash = sha256(redactedContent);
+
+  const [redactedV1] = await db
+    .insert(schema.articleVersions)
+    .values([
+      {
+        articleId: redactedArticle!.id,
+        versionMajor: 1,
+        versionMinor: 0,
+        headline: "Report on Sealed Investigation",
+        summary: "Details of an ongoing investigation into a local official.",
+        content: redactedContent,
+        authorName: "Lois Lane",
+        changeType: "original_published",
+        reviewStatus: "pending_review",
+        contentHash: redactedHash,
+        previousHash: null,
+        publishedAt: new Date("2026-06-01T12:00:00Z"),
+      },
+    ])
+    .returning();
+
+  await db.insert(schema.anchorRecords).values([
+    { articleVersionId: redactedV1!.id, status: "anchored", leafHash: redactedHash, blockHeight: 2048, chainConfirmations: 30, anchoredAt: new Date("2026-06-01T12:05:00Z") },
+  ]);
+
+  await db.insert(schema.redactions).values([
+    {
+      articleVersionId: redactedV1!.id,
+      category: "court_order",
+      reason: "Superior Court order 2026-CV-1187 — publication enjoined pending the sealed proceeding.",
+      tombstoneHash: redactedHash,
+      redactedByAccountId: adminAccount!.id,
+    },
+  ]);
+
   await db.insert(schema.savedArticles).values([{ accountId: readerAccount!.id, articleId: article!.id }]);
   await db.insert(schema.publisherFollows).values([{ accountId: readerAccount!.id, publisherId: dailyPlanet!.id }]);
 
@@ -221,9 +266,10 @@ async function seed() {
     accounts: 6,
     publishers: 2,
     reviewers: 2,
-    articles: 1,
-    versions: 3,
+    articles: 2,
+    versions: 4,
     versionVerifications: 1,
+    redactions: 1,
     dispute: 1,
     reviewerPendingId: reviewerPending!.id,
   });
