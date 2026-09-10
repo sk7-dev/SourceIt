@@ -36,7 +36,11 @@ export type Action =
   // Withdrawing is the filer's alone; resolving is the filer's or a site
   // admin's — never the publisher's.
   | { type: "dispute:withdraw"; filerAccountId: string }
-  | { type: "dispute:resolve"; filerAccountId: string };
+  | { type: "dispute:resolve"; filerAccountId: string }
+  // Site-admin-only actions: the publisher-verification and reviewer-approval
+  // queues and their decision endpoints. A plain role check — the `admin` role
+  // was created for exactly these two queues (decision 2026-08-26).
+  | { type: "admin" };
 
 export function createAuthorization(
   publishersRepo: ReturnType<typeof createPublishersRepository>,
@@ -68,6 +72,8 @@ export function createAuthorization(
         return action.filerAccountId === actor.accountId;
       case "dispute:resolve":
         return action.filerAccountId === actor.accountId || actor.role === "admin";
+      case "admin":
+        return actor.role === "admin";
     }
   }
 
@@ -94,6 +100,8 @@ function describeDenial(action: Action): string {
       return "Only the reviewer who filed a dispute can withdraw it";
     case "dispute:resolve":
       return "Only the reviewer who filed a dispute, or a site admin, can resolve it";
+    case "admin":
+      return "Only a site admin can do that";
     default:
       return "Only a member of this publisher can do that";
   }

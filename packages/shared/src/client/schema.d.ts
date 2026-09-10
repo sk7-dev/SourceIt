@@ -72,7 +72,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Created, verificationStatus=unverified */
+                /** @description Created, verificationStatus=unverified; caller added as an owner member */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -83,6 +83,24 @@ export interface paths {
                 };
                 /** @description Validation failure */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No valid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description That email is already registered to a different account */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -500,6 +518,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description No such publisher */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -538,6 +565,33 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Reviewer"];
+                    };
+                };
+                /** @description Validation failure */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No valid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description This account has already applied to be a reviewer, or the email is registered to a different account */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -635,6 +689,15 @@ export interface paths {
                 };
                 /** @description Not an admin */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such reviewer */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1999,6 +2062,9 @@ export interface components {
             createdAt: string;
         };
         CreatePublisherRequest: {
+            fullName: string;
+            /** Format: email */
+            email: string;
             organizationName: string;
             /** Format: uri */
             website: string;
@@ -2171,6 +2237,9 @@ export interface components {
             createdAt: string;
         };
         ApplyAsReviewerRequest: {
+            fullName: string;
+            /** Format: email */
+            email: string;
             affiliation: string;
             expertise: string;
             applicationReason: string;

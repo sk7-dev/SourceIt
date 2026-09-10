@@ -18,8 +18,14 @@ export const publisherSchema = z
   .openapi("Publisher");
 
 // Registration form fields — RegisterForm.tsx:202-262, docs/DOMAIN.md #2.
+// `fullName` / `email` were added on implementation (Sprint 10): the endpoint
+// runs behind a session-only guard and materializes the caller's `accounts`
+// mirror row on first authed write. The trusted identity key is still the
+// verified `clerkUserId`; these mirror the Clerk profile only.
 export const createPublisherRequestSchema = z
   .object({
+    fullName: z.string().min(1),
+    email: z.string().email(),
     organizationName: z.string().min(1),
     website: z.string().url(),
     description: z.string().min(1),

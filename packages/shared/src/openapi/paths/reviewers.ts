@@ -14,6 +14,9 @@ registry.registerPath({
   request: { body: { content: { "application/json": { schema: applyAsReviewerRequestSchema } } } },
   responses: {
     201: { description: "Created, approvalStatus=pending", content: { "application/json": { schema: reviewerSchema } } },
+    400: { description: "Validation failure", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    401: { description: "No valid session", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    409: { description: "This account has already applied to be a reviewer, or the email is registered to a different account", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -43,5 +46,6 @@ registry.registerPath({
   responses: {
     200: { description: "OK", content: { "application/json": { schema: reviewerSchema } } },
     403: { description: "Not an admin", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such reviewer", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });

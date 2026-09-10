@@ -189,6 +189,14 @@
       "CreatePublisherRequest": {
         "type": "object",
         "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
           "organizationName": {
             "type": "string",
             "minLength": 1
@@ -203,6 +211,8 @@
           }
         },
         "required": [
+          "fullName",
+          "email",
           "organizationName",
           "website",
           "description"
@@ -656,6 +666,14 @@
       "ApplyAsReviewerRequest": {
         "type": "object",
         "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
           "affiliation": {
             "type": "string",
             "minLength": 1
@@ -670,6 +688,8 @@
           }
         },
         "required": [
+          "fullName",
+          "email",
           "affiliation",
           "expertise",
           "applicationReason"
@@ -1624,7 +1644,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created, verificationStatus=unverified",
+            "description": "Created, verificationStatus=unverified; caller added as an owner member",
             "content": {
               "application/json": {
                 "schema": {
@@ -1635,6 +1655,26 @@
           },
           "400": {
             "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That email is already registered to a different account",
             "content": {
               "application/json": {
                 "schema": {
@@ -2191,6 +2231,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such publisher",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2222,6 +2272,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Reviewer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This account has already applied to be a reviewer, or the email is registered to a different account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -2348,6 +2428,16 @@
           },
           "403": {
             "description": "Not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such reviewer",
             "content": {
               "application/json": {
                 "schema": {

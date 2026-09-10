@@ -26,9 +26,15 @@ export const reviewerSchema = z
   })
   .openapi("Reviewer");
 
-// RegisterForm.tsx:265-319.
+// RegisterForm.tsx:265-319. `fullName` / `email` were added on implementation
+// (Sprint 10): the endpoint runs behind a session-only guard and materializes
+// the caller's `accounts` mirror row on first authed write, so it needs the
+// identity fields the Clerk session token doesn't carry. The trusted key is
+// still the verified `clerkUserId`; these are the profile mirror only.
 export const applyAsReviewerRequestSchema = z
   .object({
+    fullName: z.string().min(1),
+    email: z.string().email(),
     affiliation: z.string().min(1),
     expertise: z.string().min(1),
     applicationReason: z.string().min(1),
