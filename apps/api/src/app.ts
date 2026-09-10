@@ -15,6 +15,7 @@ import { registerHealthRoutes } from "./routes/health.route";
 import { registerMeRoute } from "./routes/me.route";
 import { registerArticleRoutes } from "./routes/articles.route";
 import { registerPublisherArticlesRoute } from "./routes/publisherArticles.route";
+import { registerPublisherRoutes } from "./routes/publishers.route";
 import { registerAnchorRoute } from "./routes/anchor.route";
 import { registerEvidenceRoutes } from "./routes/evidence.route";
 import { registerReviewRoutes } from "./routes/reviews.route";
@@ -89,6 +90,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerMeRoute(app);
   registerArticleRoutes(app);
   registerPublisherArticlesRoute(app);
+  registerPublisherRoutes(app);
   registerAnchorRoute(app);
   registerEvidenceRoutes(app);
   registerReviewRoutes(app);

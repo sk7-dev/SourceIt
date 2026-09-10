@@ -47,12 +47,13 @@ registry.registerPath({
   method: "get",
   path: "/publishers/{publisherId}/analytics",
   tags: ["Publishers"],
-  summary: "Aggregate counts for the publisher dashboard (AnalyticsCards.tsx)",
+  summary: "Aggregate counts for the publisher dashboard (AnalyticsCards.tsx) — any authenticated account",
   security: authed,
   request: { params: publisherIdParam },
   responses: {
     200: { description: "OK", content: { "application/json": { schema: publisherAnalyticsSchema } } },
-    403: { description: "Not a member of this publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    401: { description: "No session / no account", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -60,11 +61,13 @@ registry.registerPath({
   method: "get",
   path: "/publishers/{publisherId}/activity",
   tags: ["Publishers"],
-  summary: "Recent activity feed (RecentActivity.tsx)",
+  summary: "Recent activity feed (RecentActivity.tsx) — any authenticated account",
   security: authed,
   request: { params: publisherIdParam, query: paginationQuerySchema },
   responses: {
     200: { description: "OK", content: { "application/json": { schema: paginatedResponseSchema(activityEventSchema) } } },
+    401: { description: "No session / no account", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -84,7 +87,8 @@ registry.registerPath({
   method: "get",
   path: "/publishers/{publisherId}/reviews",
   tags: ["Publishers"],
-  summary: "Reviews and disputes against this publisher's articles (ReviewsDisputes.tsx)",
+  summary:
+    "Reviews and disputes against this publisher's articles (ReviewsDisputes.tsx) — one chronological page across both, any authenticated account",
   security: authed,
   request: { params: publisherIdParam, query: paginationQuerySchema },
   responses: {
@@ -96,6 +100,8 @@ registry.registerPath({
         },
       },
     },
+    401: { description: "No session / no account", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -103,10 +109,11 @@ registry.registerPath({
   method: "get",
   path: "/publishers/{publisherId}/credibility",
   tags: ["Publishers"],
-  summary: "Published credibility breakdown (CredibilityPanel.tsx)",
+  summary: "Published credibility breakdown (CredibilityPanel.tsx) — public",
   request: { params: publisherIdParam },
   responses: {
     200: { description: "OK", content: { "application/json": { schema: credibilityBreakdownSchema } } },
+    404: { description: "No such publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -114,10 +121,11 @@ registry.registerPath({
   method: "get",
   path: "/publishers/{publisherId}/credibility-history",
   tags: ["Publishers"],
-  summary: "Credibility score trend (CredibilityPanel.tsx:84 sparkline)",
+  summary: "Credibility score trend (CredibilityPanel.tsx:84 sparkline) — public, newest first",
   request: { params: publisherIdParam, query: paginationQuerySchema },
   responses: {
     200: { description: "OK", content: { "application/json": { schema: paginatedResponseSchema(credibilityHistoryPointSchema) } } },
+    404: { description: "No such publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 

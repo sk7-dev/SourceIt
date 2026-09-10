@@ -170,7 +170,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Aggregate counts for the publisher dashboard (AnalyticsCards.tsx) */
+        /** Aggregate counts for the publisher dashboard (AnalyticsCards.tsx) — any authenticated account */
         get: {
             parameters: {
                 query?: never;
@@ -191,8 +191,17 @@ export interface paths {
                         "application/json": components["schemas"]["PublisherAnalytics"];
                     };
                 };
-                /** @description Not a member of this publisher */
-                403: {
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such publisher */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -217,7 +226,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Recent activity feed (RecentActivity.tsx) */
+        /** Recent activity feed (RecentActivity.tsx) — any authenticated account */
         get: {
             parameters: {
                 query?: {
@@ -242,6 +251,24 @@ export interface paths {
                             items: components["schemas"]["ActivityEvent"][];
                             nextCursor: string | null;
                         };
+                    };
+                };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such publisher */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -305,7 +332,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Reviews and disputes against this publisher's articles (ReviewsDisputes.tsx) */
+        /** Reviews and disputes against this publisher's articles (ReviewsDisputes.tsx) — one chronological page across both, any authenticated account */
         get: {
             parameters: {
                 query?: {
@@ -332,6 +359,24 @@ export interface paths {
                         };
                     };
                 };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such publisher */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -349,7 +394,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Published credibility breakdown (CredibilityPanel.tsx) */
+        /** Published credibility breakdown (CredibilityPanel.tsx) — public */
         get: {
             parameters: {
                 query?: never;
@@ -370,6 +415,15 @@ export interface paths {
                         "application/json": components["schemas"]["CredibilityBreakdown"];
                     };
                 };
+                /** @description No such publisher */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -387,7 +441,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Credibility score trend (CredibilityPanel.tsx:84 sparkline) */
+        /** Credibility score trend (CredibilityPanel.tsx:84 sparkline) — public, newest first */
         get: {
             parameters: {
                 query?: {
@@ -412,6 +466,15 @@ export interface paths {
                             items: components["schemas"]["CredibilityHistoryPoint"][];
                             nextCursor: string | null;
                         };
+                    };
+                };
+                /** @description No such publisher */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
