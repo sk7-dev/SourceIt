@@ -50,6 +50,13 @@
       "when": 1789300000000,
       "tag": "0006_version_verifications",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789400000000,
+      "tag": "0007_redactions_append_only",
+      "breakpoints": true
     }
   ]
 }
