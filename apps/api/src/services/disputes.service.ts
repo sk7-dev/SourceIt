@@ -6,6 +6,7 @@ import type {
   DisputeRow,
 } from "../repositories/disputes.repository";
 import type { createReviewersRepository } from "../repositories/reviewers.repository";
+import type { PublisherEventRecorder } from "./publisherEvents";
 
 type DisputesRepo = ReturnType<typeof createDisputesRepository>;
 type ReviewersRepo = ReturnType<typeof createReviewersRepository>;
@@ -53,6 +54,7 @@ export function createDisputesService(
   repo: DisputesRepo,
   reviewersRepo: ReviewersRepo,
   authz: Authorization,
+  recorder: PublisherEventRecorder,
 ) {
   async function loadApiDispute(disputeId: string) {
     const dispute = await repo.findDisputeById(disputeId);
@@ -107,6 +109,14 @@ export function createDisputesService(
         filedByReviewerId: reviewer.id,
         reason: input.reason,
       });
+      await recorder.recordActivity({
+        publisherId: version.publisherId,
+        type: "dispute_filed",
+        title: "A dispute was filed against a published version",
+        articleId: version.articleId,
+        articleVersionId: versionId,
+      });
+      await recorder.recordCredibilitySnapshot(version.publisherId);
       return toApiDispute(dispute, []);
     },
 
@@ -170,6 +180,9 @@ export function createDisputesService(
         correctionVersionId: null,
         actorAccountId: actor.accountId,
       });
+      // The dispute is now closed — the publisher's open-dispute count dropped.
+      const context = await repo.findDisputeContext(disputeId);
+      if (context) await recorder.recordCredibilitySnapshot(context.publisherId);
       return (await loadApiDispute(disputeId)).api;
     },
   };

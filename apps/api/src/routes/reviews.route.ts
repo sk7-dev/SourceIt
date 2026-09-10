@@ -9,8 +9,11 @@ import {
 import { createReviewsRepository } from "../repositories/reviews.repository";
 import { createReviewersRepository } from "../repositories/reviewers.repository";
 import { createPublishersRepository } from "../repositories/publishers.repository";
+import { createVerificationRepository } from "../repositories/verification.repository";
+import { createPublisherDashboardRepository } from "../repositories/publisherDashboard.repository";
 import { createAuthorization } from "../auth/can";
 import { createReviewsService } from "../services/reviews.service";
+import { createPublisherEventRecorder } from "../services/publisherEvents";
 
 // GET  /versions/{versionId}/reviews  — public (ReviewerNotes.tsx)
 // POST /versions/{versionId}/reviews  — authed, approved non-affiliated reviewer
@@ -19,7 +22,11 @@ export function registerReviewRoutes(app: FastifyInstance) {
   const reviewersRepo = createReviewersRepository(app.db);
   const repo = createReviewsRepository(app.db);
   const authz = createAuthorization(createPublishersRepository(app.db), reviewersRepo);
-  const service = createReviewsService(repo, reviewersRepo, authz);
+  const events = createPublisherEventRecorder(
+    createPublisherDashboardRepository(app.db),
+    createVerificationRepository(app.db),
+  );
+  const service = createReviewsService(repo, reviewersRepo, authz, events);
 
   app.get<{ Params: { versionId: string } }>("/versions/:versionId/reviews", async (request) => {
     const query = paginationQuerySchema.parse(request.query);

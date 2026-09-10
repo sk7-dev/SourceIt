@@ -10,8 +10,11 @@ import {
 import { createDisputesRepository } from "../repositories/disputes.repository";
 import { createReviewersRepository } from "../repositories/reviewers.repository";
 import { createPublishersRepository } from "../repositories/publishers.repository";
+import { createVerificationRepository } from "../repositories/verification.repository";
+import { createPublisherDashboardRepository } from "../repositories/publisherDashboard.repository";
 import { createAuthorization } from "../auth/can";
 import { createDisputesService } from "../services/disputes.service";
+import { createPublisherEventRecorder } from "../services/publisherEvents";
 
 // GET  /versions/{versionId}/disputes  — public
 // POST /versions/{versionId}/disputes  — authed, approved non-affiliated reviewer
@@ -22,7 +25,11 @@ export function registerDisputeRoutes(app: FastifyInstance) {
   const reviewersRepo = createReviewersRepository(app.db);
   const repo = createDisputesRepository(app.db);
   const authz = createAuthorization(createPublishersRepository(app.db), reviewersRepo);
-  const service = createDisputesService(repo, reviewersRepo, authz);
+  const events = createPublisherEventRecorder(
+    createPublisherDashboardRepository(app.db),
+    createVerificationRepository(app.db),
+  );
+  const service = createDisputesService(repo, reviewersRepo, authz, events);
 
   app.get<{ Params: { versionId: string } }>("/versions/:versionId/disputes", async (request) => {
     const query = paginationQuerySchema.parse(request.query);

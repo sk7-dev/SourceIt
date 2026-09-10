@@ -271,6 +271,17 @@ async function seed() {
     { accountId: readerAccount!.id, publisherId: unverifiedTimes!.id },
   ]);
 
+  // A credibility trend for the sparkline (CredibilityPanel.tsx). API-created
+  // data gets these points from the Sprint 14 write hooks; the seed inserts a
+  // short history directly.
+  await db.insert(schema.credibilityScoreHistory).values(
+    [72, 75, 74, 78, 81, 79].map((score, i) => ({
+      publisherId: dailyPlanet!.id,
+      score,
+      recordedAt: new Date(2026, 3 + i, 15),
+    })),
+  );
+
   console.log("seed complete:", {
     accounts: 6,
     publishers: 2,
@@ -281,6 +292,7 @@ async function seed() {
     redactions: 1,
     savedArticles: 2,
     publisherFollows: 2,
+    credibilityHistoryPoints: 6,
     dispute: 1,
     reviewerPendingId: reviewerPending!.id,
   });

@@ -2,6 +2,7 @@ import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import type { Actor, createAuthorization } from "../auth/can";
 import type { createReviewsRepository, ReviewRow } from "../repositories/reviews.repository";
 import type { createReviewersRepository } from "../repositories/reviewers.repository";
+import type { PublisherEventRecorder } from "./publisherEvents";
 
 type ReviewsRepo = ReturnType<typeof createReviewsRepository>;
 type ReviewersRepo = ReturnType<typeof createReviewersRepository>;
@@ -33,6 +34,7 @@ export function createReviewsService(
   repo: ReviewsRepo,
   reviewersRepo: ReviewersRepo,
   authz: Authorization,
+  events: PublisherEventRecorder,
 ) {
   return {
     // GET /versions/{versionId}/reviews — public. A draft version is not
@@ -67,7 +69,14 @@ export function createReviewsService(
         type: input.type,
         comment: input.comment,
       });
-      return toApiReview(row);
+      const api = toApiReview(row);
+      await events.recordActivity({
+        publisherId: version.publisherId,
+        type: "review",
+        title: `${api.reviewer.displayName} added a ${input.type.replace(/_/g, " ")}`,
+        articleVersionId: versionId,
+      });
+      return api;
     },
 
     // POST /reviews/{reviewId}/retract — only the reviewer who wrote it. The

@@ -6,6 +6,7 @@ import type {
   createVersionVerificationsRepository,
   VersionVerificationRow,
 } from "../repositories/versionVerifications.repository";
+import type { PublisherEventRecorder } from "./publisherEvents";
 
 type VerificationsRepo = ReturnType<typeof createVersionVerificationsRepository>;
 type ReviewsRepo = ReturnType<typeof createReviewsRepository>;
@@ -30,6 +31,7 @@ export function createVersionVerificationService(
   reviewsRepo: ReviewsRepo,
   reviewersRepo: ReviewersRepo,
   authz: Authorization,
+  events: PublisherEventRecorder,
 ) {
   return {
     // POST /versions/{versionId}/verify — an approved reviewer with no
@@ -52,6 +54,7 @@ export function createVersionVerificationService(
       }
 
       const row = await repo.create({ articleVersionId: versionId, reviewerId: reviewer.id });
+      await events.recordCredibilitySnapshot(version.publisherId);
       return toApiVersionVerification(row);
     },
   };

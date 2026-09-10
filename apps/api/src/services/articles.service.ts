@@ -4,6 +4,7 @@ import type { Actor, createAuthorization } from "../auth/can";
 import type { createArticlesRepository } from "../repositories/articles.repository";
 import { versionLabel } from "../repositories/articles.repository";
 import type { createRedactionsRepository } from "../repositories/redactions.repository";
+import type { PublisherEventRecorder } from "./publisherEvents";
 
 type ArticlesRepo = ReturnType<typeof createArticlesRepository>;
 type RedactionsRepo = ReturnType<typeof createRedactionsRepository>;
@@ -113,7 +114,30 @@ export function createArticlesService(
   repo: ArticlesRepo,
   redactionsRepo: RedactionsRepo,
   authz: Authorization,
+  events: PublisherEventRecorder,
 ) {
+  // A submitted version's activity type + human title (Sprint 14). `publish` for
+  // a first version, `update` for a major correction, `correction` for a minor.
+  async function recordPublish(
+    publisherId: string,
+    articleId: string,
+    versionId: string,
+    changeType: string,
+    label: string,
+    headline: string,
+  ) {
+    const type =
+      changeType === "original_published" ? "publish" : changeType === "major_update" ? "update" : "correction";
+    const title =
+      type === "publish"
+        ? `Published "${headline}"`
+        : type === "update"
+          ? `Published a major update (${label})`
+          : `Published a correction (${label})`;
+    await events.recordActivity({ publisherId, type, title, articleId, articleVersionId: versionId });
+    await events.recordCredibilitySnapshot(publisherId);
+  }
+
   return {
     async createArticle(actor: Actor, input: CreateArticleInput) {
       await authz.assertCan(actor, { type: "article:createDraft", publisherId: input.publisherId });
@@ -159,6 +183,14 @@ export function createArticlesService(
 
       if (input.submit && contentHash) {
         await repo.createAnchorRecord({ articleVersionId: version.id, leafHash: contentHash });
+        await recordPublish(
+          input.publisherId,
+          article.id,
+          version.id,
+          "original_published",
+          versionLabel(1, 0),
+          input.headline,
+        );
       }
 
       return { article: toApiArticle(article), version: toApiVersion(version) };
@@ -259,6 +291,14 @@ export function createArticlesService(
 
       if (input.submit && contentHash) {
         await repo.createAnchorRecord({ articleVersionId: version.id, leafHash: contentHash });
+        await recordPublish(
+          article.publisherId,
+          articleId,
+          version.id,
+          input.changeType,
+          versionLabel(version.versionMajor, version.versionMinor),
+          input.headline,
+        );
       }
 
       return toApiVersion(version);
@@ -317,6 +357,14 @@ export function createArticlesService(
 
       if (input.submit && contentHash) {
         await repo.createAnchorRecord({ articleVersionId: updated.id, leafHash: contentHash });
+        await recordPublish(
+          article.publisherId,
+          articleId,
+          updated.id,
+          input.changeType,
+          versionLabel(updated.versionMajor, updated.versionMinor),
+          input.headline,
+        );
       }
 
       return toApiVersion(updated);
@@ -343,6 +391,9 @@ export function createArticlesService(
 
       const updated = await repo.archiveArticle(articleId);
       if (!updated) throw new NotFoundError("Article not found");
+      // Archiving removes the article from the publisher's aggregate, which can
+      // move the credibility score.
+      await events.recordCredibilitySnapshot(article.publisherId);
       return toApiArticle(updated);
     },
 
