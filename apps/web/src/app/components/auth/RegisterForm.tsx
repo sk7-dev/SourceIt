@@ -103,6 +103,14 @@ export default function RegisterForm() {
       });
       toast.info("Reviewer account pending approval");
     } else {
+      const { data: created, error } = await api.POST("/readers", {
+        body: { fullName: data.fullName, email: data.email },
+      });
+      if (error || !created) {
+        toast.error("Signed up, but creating the reader record failed");
+        setIsLoading(false);
+        return;
+      }
       setRegistrationStatus({
         success: true,
         message: "Registration successful! Welcome to the platform. You can now login with your credentials.",
@@ -123,12 +131,8 @@ export default function RegisterForm() {
     setIsLoading(true);
     setRegistrationStatus(null);
 
-    // Readers have no backend endpoint yet — keep the local confirmation.
-    if (selectedRole === "reader") {
-      await finishRegistration(data, "reader");
-      return;
-    }
-
+    // Every role now goes through Clerk sign-up: POST /readers, like
+    // POST /publishers and POST /reviewers/apply, runs behind requireAuth.
     if (!isLoaded) {
       setIsLoading(false);
       return;

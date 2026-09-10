@@ -24,6 +24,7 @@ import { registerDisputeRoutes } from "./routes/disputes.route";
 import { registerVerificationRoute } from "./routes/verification.route";
 import { registerAdminRoutes } from "./routes/admin.route";
 import { registerRegistrationRoutes } from "./routes/registration.route";
+import { registerReaderRoutes } from "./routes/reader.route";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -97,6 +98,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerVerificationRoute(app);
   registerAdminRoutes(app);
   registerRegistrationRoutes(app);
+  registerReaderRoutes(app);
 
   return app;
 }
