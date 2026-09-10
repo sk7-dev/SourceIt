@@ -13,6 +13,13 @@ const envSchema = z.object({
   // server). Unset means "no cross-origin browser access" outside
   // development, where any origin is allowed for convenience.
   CORS_ORIGIN: z.string().optional(),
+  // Rate limiting (Phase 5). The global per-IP budget for read requests over
+  // RATE_LIMIT_WINDOW_MS; mutating requests (POST/PATCH/PUT/DELETE) get
+  // RATE_LIMIT_WRITE_MAX instead. Health checks are never limited. Tune per
+  // deployment; the defaults suit a single API instance behind Railway's proxy.
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  RATE_LIMIT_WRITE_MAX: z.coerce.number().int().positive().default(30),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
 });
 
 export const env = envSchema.parse(process.env);

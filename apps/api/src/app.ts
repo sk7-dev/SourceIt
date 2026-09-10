@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import { configureRateLimit } from "./plugins/rateLimit";
 import { env } from "./env";
 import { db as defaultDb } from "./db";
 import { createInMemoryObjectStore, type ObjectStore } from "./storage/objectStore";
@@ -45,12 +46,19 @@ export interface BuildAppOptions {
   // storage/ modules and docs/PROJECT_STATE.md).
   objectStore?: ObjectStore;
   sourceArchiver?: SourceArchiver;
+  // Rate limiting (Phase 5). Defaults to the env-configured limits; pass
+  // `false` to disable (the integration-test harness does, so a suite of
+  // hundreds of `app.inject` calls from 127.0.0.1 doesn't trip it), or an
+  // override for the dedicated rate-limit test.
+  rateLimit?: false | { readMax?: number; writeMax?: number; windowMs?: number };
 }
 
+
 // The single place the app is assembled — used by src/server.ts to actually
-// listen, and by test/testApp.ts to build the same app against a Testcontainers
-// Postgres with a fake session verifier (see src/auth/verifySession.ts for why).
-export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
+// listen, and by test/testApp.ts to build the same app against a real Postgres
+// with a fake session verifier (see src/auth/verifySession.ts for why). Async
+// because the rate-limit plugin must be `await`ed before routes register.
+export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
     // Structured JSON logging, one request ID threaded through every log line
     // (cross-cutting standard).
@@ -73,6 +81,16 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.register(multipart, {
     limits: { fileSize: 25 * 1024 * 1024, files: 1, fields: 16 },
   });
+
+  // Rate limiting (Phase 5). See src/plugins/rateLimit.ts. Awaited so its global
+  // hook is attached before the route registrations below.
+  if (options.rateLimit !== false) {
+    await configureRateLimit(app, {
+      readMax: options.rateLimit?.readMax ?? env.RATE_LIMIT_MAX,
+      writeMax: options.rateLimit?.writeMax ?? env.RATE_LIMIT_WRITE_MAX,
+      windowMs: options.rateLimit?.windowMs ?? env.RATE_LIMIT_WINDOW_MS,
+    });
+  }
 
   const db = options.db ?? defaultDb;
   app.decorate("db", db);

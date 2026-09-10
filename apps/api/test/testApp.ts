@@ -21,7 +21,9 @@ import type { SessionVerifier } from "../src/auth/verifySession";
 // get a fresh, isolated container per file anyway. Because every test *file*
 // would otherwise race to drop/recreate the same external database, only use
 // TEST_DATABASE_URL with `vitest run --no-file-parallelism`.
-export async function startTestApp() {
+export async function startTestApp(
+  rateLimitOverride?: false | { readMax?: number; writeMax?: number; windowMs?: number },
+) {
   const externalUrl = process.env.TEST_DATABASE_URL;
   const container = externalUrl ? null : await new PostgreSqlContainer("postgres:16-alpine").start();
   const pool = new Pool({ connectionString: externalUrl ?? container!.getConnectionUri() });
@@ -38,7 +40,10 @@ export async function startTestApp() {
 
   await migrate(db, { migrationsFolder: migrationsPath });
 
-  const app = buildApp({ db, verifySession: fakeVerifySession });
+  // Rate limiting is off by default here — a suite of hundreds of app.inject
+  // calls all originate from 127.0.0.1. `reader.integration`'s dedicated
+  // rate-limit test passes an explicit low override.
+  const app = await buildApp({ db, verifySession: fakeVerifySession, rateLimit: rateLimitOverride ?? false });
   await app.ready();
 
   return {

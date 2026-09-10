@@ -1,11 +1,9 @@
 import { buildApp } from "./app";
 import { env } from "./env";
 
-const app = buildApp();
+const app = await buildApp();
 
-app
-  .listen({ port: env.PORT, host: "0.0.0.0" })
-  .catch((err) => {
-    app.log.error(err);
-    process.exit(1);
-  });
+app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {
+  app.log.error(err);
+  process.exit(1);
+});
