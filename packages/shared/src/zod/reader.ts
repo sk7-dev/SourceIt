@@ -2,6 +2,17 @@ import { z } from "./z";
 import { uuidSchema, isoDatetimeSchema } from "./common";
 import { trustStatusSchema } from "./enums";
 
+// POST /readers (Sprint 13). Self-service reader registration — the same
+// session-only, body-carries-identity shape as POST /publishers /
+// POST /reviewers/apply (Sprint 10). A reader has no role-specific profile, so
+// the response is the materialized `accountSchema`.
+export const createReaderRequestSchema = z
+  .object({
+    fullName: z.string().min(1),
+    email: z.string().email(),
+  })
+  .openapi("CreateReaderRequest");
+
 // SavedArticles.tsx:11-52 — denormalized for the list view so the frontend
 // doesn't need a second round trip per row.
 export const savedArticleSchema = z

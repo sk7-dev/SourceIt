@@ -1518,6 +1518,23 @@
           "reason"
         ]
       },
+      "CreateReaderRequest": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "fullName",
+          "email"
+        ]
+      },
       "SavedArticle": {
         "type": "object",
         "properties": {
@@ -3914,6 +3931,60 @@
         }
       }
     },
+    "/readers": {
+      "post": {
+        "tags": [
+          "Reader"
+        ],
+        "summary": "Self-service reader registration — session only, materializes the caller's accounts row (RegisterForm.tsx reader path). Mirrors POST /publishers.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReaderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created (or already existed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That email is already registered to a different account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/saved-articles": {
       "get": {
         "tags": [
@@ -3974,6 +4045,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "No session / no account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -4003,6 +4084,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SavedArticle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session / no account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such article (unknown or archived)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -4037,8 +4148,28 @@
           "204": {
             "description": "Deleted"
           },
+          "401": {
+            "description": "No session / no account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Not the owning reader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such saved-article row",
             "content": {
               "application/json": {
                 "schema": {
@@ -4110,6 +4241,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "No session / no account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -4139,6 +4280,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PublisherFollow"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session / no account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such publisher",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already following",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -4173,8 +4344,28 @@
           "204": {
             "description": "Deleted"
           },
+          "401": {
+            "description": "No session / no account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Not the owning reader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such follow row",
             "content": {
               "application/json": {
                 "schema": {

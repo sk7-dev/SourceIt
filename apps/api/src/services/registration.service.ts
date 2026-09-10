@@ -25,6 +25,27 @@ export interface ApplyAsReviewerInput {
   applicationReason: string;
 }
 
+export interface CreateReaderInput {
+  fullName: string;
+  email: string;
+}
+
+function toApiAccount(row: {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  createdAt: Date;
+}) {
+  return {
+    id: row.id,
+    email: row.email,
+    fullName: row.fullName,
+    role: row.role,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export function createRegistrationService(
   accountsRepo: AccountsRepo,
   publishersRepo: PublishersRepo,
@@ -37,7 +58,7 @@ export function createRegistrationService(
     clerkUserId: string,
     email: string,
     fullName: string,
-    role: "publisher" | "reviewer",
+    role: "reader" | "publisher" | "reviewer",
   ) {
     const byEmail = await accountsRepo.findByEmail(email);
     if (byEmail && byEmail.clerkUserId !== clerkUserId) {
@@ -47,6 +68,15 @@ export function createRegistrationService(
   }
 
   return {
+    // POST /readers — session only. A reader has no role-specific profile, so
+    // this just materializes the `accounts` mirror row (idempotent on
+    // clerkUserId) and returns it. A repeat call from the same session is a
+    // no-op that returns the existing account.
+    async registerReader(clerkUserId: string, input: CreateReaderInput) {
+      const account = await ensureCallerAccount(clerkUserId, input.email, input.fullName, "reader");
+      return toApiAccount(account);
+    },
+
     // POST /publishers — session only (no local account required yet). Creates
     // the publisher (verificationStatus defaults to `unverified`) with a
     // placeholder clerk_org_id — real Clerk Organization sync is deferred

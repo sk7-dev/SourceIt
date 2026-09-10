@@ -1871,6 +1871,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/readers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Self-service reader registration — session only, materializes the caller's accounts row (RegisterForm.tsx reader path). Mirrors POST /publishers. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateReaderRequest"];
+                };
+            };
+            responses: {
+                /** @description Created (or already existed) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Account"];
+                    };
+                };
+                /** @description No session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description That email is already registered to a different account */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/saved-articles": {
         parameters: {
             query?: never;
@@ -1903,6 +1961,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1927,6 +1994,33 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["SavedArticle"];
+                    };
+                };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such article (unknown or archived) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Already saved */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -1966,8 +2060,26 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description Not the owning reader */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such saved-article row */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2014,6 +2126,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -2038,6 +2159,33 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["PublisherFollow"];
+                    };
+                };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such publisher */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Already following */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -2077,8 +2225,26 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description No session / no account */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description Not the owning reader */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such follow row */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2594,6 +2760,11 @@ export interface components {
             /** @enum {string} */
             category: "court_order" | "defamation_ruling" | "right_to_erasure";
             reason: string;
+        };
+        CreateReaderRequest: {
+            fullName: string;
+            /** Format: email */
+            email: string;
         };
         SavedArticle: {
             /**

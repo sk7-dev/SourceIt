@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import {
+  accountSchema,
   applyAsReviewerRequestSchema,
   createPublisherRequestSchema,
+  createReaderRequestSchema,
   publisherSchema,
   reviewerSchema,
 } from "@sourceit/shared";
@@ -21,6 +23,13 @@ export function registerRegistrationRoutes(app: FastifyInstance) {
     createPublishersRepository(app.db),
     createReviewersRepository(app.db),
   );
+
+  app.post("/readers", { preHandler: requireAuth }, async (request, reply) => {
+    const body = createReaderRequestSchema.parse(request.body);
+    const created = await service.registerReader(request.auth!.clerkUserId, body);
+    reply.status(201);
+    return accountSchema.parse(created);
+  });
 
   app.post("/publishers", { preHandler: requireAuth }, async (request, reply) => {
     const body = createPublisherRequestSchema.parse(request.body);
