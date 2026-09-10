@@ -7,6 +7,7 @@ export * from "./articles";
 export * from "./article-versions";
 export * from "./evidence";
 export * from "./reviews";
+export * from "./version-verifications";
 export * from "./disputes";
 export * from "./anchoring";
 export * from "./redactions";

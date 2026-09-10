@@ -43,6 +43,13 @@
       "when": 1789246000000,
       "tag": "0005_anchoring_worker",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789300000000,
+      "tag": "0006_version_verifications",
+      "breakpoints": true
     }
   ]
 }
