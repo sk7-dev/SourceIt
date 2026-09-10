@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "publisher_follows_account_id_id_idx" ON "publisher_follows" USING btree ("account_id","id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "saved_articles_account_id_id_idx" ON "saved_articles" USING btree ("account_id","id");

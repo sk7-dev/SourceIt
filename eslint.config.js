@@ -17,6 +17,8 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "**/migrations/**"],
+    // Plain-Node CommonJS test fixtures (spawned as subprocesses) aren't part
+    // of the TS/ESM sources.
+    ignores: ["**/dist/**", "**/node_modules/**", "**/migrations/**", "**/test/fixtures/**"],
   },
 );

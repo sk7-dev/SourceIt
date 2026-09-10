@@ -163,5 +163,70 @@ export function createVerificationRepository(db: typeof Db) {
         hasOpenDispute: openDisputeVersionIds.has(e.current.id),
       }));
     },
+
+    // The same aggregate for many publishers at once (Phase 5) — 3 queries
+    // total regardless of how many publishers, for the follow-list credibility
+    // in reader.service. Returns a Map keyed by publisher id; a publisher with
+    // no published articles is absent (the caller treats that as `[]`).
+    async creditAggregateForPublishers(publisherIds: string[]) {
+      const out = new Map<
+        string,
+        { currentReviewStatus: string; publishedVersionCount: number; hasOpenDispute: boolean }[]
+      >();
+      if (publisherIds.length === 0) return out;
+
+      const articles = await db
+        .select({ id: schema.articles.id, publisherId: schema.articles.publisherId })
+        .from(schema.articles)
+        .where(
+          and(inArray(schema.articles.publisherId, publisherIds), isNull(schema.articles.archivedAt)),
+        );
+      if (articles.length === 0) return out;
+
+      const publisherByArticle = new Map(articles.map((a) => [a.id, a.publisherId]));
+      const versions = await db
+        .select({
+          articleId: schema.articleVersions.articleId,
+          id: schema.articleVersions.id,
+          reviewStatus: schema.articleVersions.reviewStatus,
+        })
+        .from(schema.articleVersions)
+        .where(
+          and(
+            inArray(
+              schema.articleVersions.articleId,
+              articles.map((a) => a.id),
+            ),
+            ne(schema.articleVersions.reviewStatus, "draft"),
+          ),
+        )
+        .orderBy(desc(schema.articleVersions.versionMajor), desc(schema.articleVersions.versionMinor));
+
+      const byArticle = new Map<string, { current: (typeof versions)[number]; count: number }>();
+      for (const v of versions) {
+        const entry = byArticle.get(v.articleId);
+        if (entry) entry.count += 1;
+        else byArticle.set(v.articleId, { current: v, count: 1 });
+      }
+      if (byArticle.size === 0) return out;
+
+      const currentVersionIds = [...byArticle.values()].map((e) => e.current.id);
+      const [openDisputeVersionIds, verifiedVersionIds] = await Promise.all([
+        findVersionIdsWithOpenDispute(currentVersionIds),
+        findVerifiedVersionIds(currentVersionIds),
+      ]);
+
+      for (const [articleId, e] of byArticle) {
+        const publisherId = publisherByArticle.get(articleId)!;
+        const bucket = out.get(publisherId) ?? [];
+        bucket.push({
+          currentReviewStatus: verifiedVersionIds.has(e.current.id) ? "verified" : e.current.reviewStatus,
+          publishedVersionCount: e.count,
+          hasOpenDispute: openDisputeVersionIds.has(e.current.id),
+        });
+        out.set(publisherId, bucket);
+      }
+      return out;
+    },
   };
 }

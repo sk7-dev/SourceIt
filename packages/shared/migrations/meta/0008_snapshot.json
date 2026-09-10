@@ -1,6 +1,6 @@
 {
-  "id": "d776e725-90a3-41ca-ae38-99a6cf882bc1",
-  "prevId": "1602e72c-f501-4a24-a9c2-4d0dd149820e",
+  "id": "15f17640-3aad-412d-b203-4a80ad5c43af",
+  "prevId": "d776e725-90a3-41ca-ae38-99a6cf882bc1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1669,7 +1669,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "publisher_follows_account_id_id_idx": {
+          "name": "publisher_follows_account_id_id_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "publisher_follows_account_id_accounts_id_fk": {
           "name": "publisher_follows_account_id_accounts_id_fk",
@@ -1744,7 +1766,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "saved_articles_account_id_id_idx": {
+          "name": "saved_articles_account_id_id_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "saved_articles_account_id_accounts_id_fk": {
           "name": "saved_articles_account_id_accounts_id_fk",

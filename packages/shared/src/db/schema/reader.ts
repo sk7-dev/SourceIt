@@ -1,4 +1,4 @@
-import { pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { accounts } from "./accounts";
 import { articles } from "./articles";
 import { publishers } from "./publishers";
@@ -21,6 +21,11 @@ export const savedArticles = pgTable("saved_articles", {
     table.accountId,
     table.articleId,
   ),
+  // GET /saved-articles is `WHERE account_id = $1 AND id > $cursor ORDER BY id`
+  // — the (account_id, article_id) unique index can't order by `id`, so without
+  // this the planner scans the primary key and filters by account (Phase 5
+  // EXPLAIN audit).
+  byAccountKeyset: index("saved_articles_account_id_id_idx").on(table.accountId, table.id),
 }));
 
 // docs/DOMAIN.md #10.
@@ -40,4 +45,6 @@ export const publisherFollows = pgTable("publisher_follows", {
     table.accountId,
     table.publisherId,
   ),
+  // Same keyset shape as saved_articles — GET /publisher-follows.
+  byAccountKeyset: index("publisher_follows_account_id_id_idx").on(table.accountId, table.id),
 }));

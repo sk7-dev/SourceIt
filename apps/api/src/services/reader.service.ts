@@ -68,29 +68,20 @@ export function createReaderService(repo: ReaderRepo, verificationRepo: Verifica
   }
 
   async function toApiFollows(rows: FollowRow[]) {
-    const out: {
-      id: string;
-      publisherId: string;
-      publisherName: string;
-      verified: boolean;
-      credibilityScore: number;
-      createdAt: string;
-    }[] = [];
-    for (const r of rows) {
-      // Read-time credibility, the same formula the verification endpoint uses.
-      // Looped per followed publisher — reader follow counts are small at
-      // year-one volume; batch it if that changes.
-      const { credibilityScore } = computeCredibility(await verificationRepo.creditAggregate(r.publisherId));
-      out.push({
-        id: r.id,
-        publisherId: r.publisherId,
-        publisherName: r.publisherName,
-        verified: r.verificationStatus === "verified",
-        credibilityScore,
-        createdAt: r.createdAt.toISOString(),
-      });
-    }
-    return out;
+    // Read-time credibility, the same formula the verification endpoint uses —
+    // one batched aggregate for the whole page, not one query per followed
+    // publisher (Phase 5 N+1 fix).
+    const aggregates = await verificationRepo.creditAggregateForPublishers(
+      rows.map((r) => r.publisherId),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      publisherId: r.publisherId,
+      publisherName: r.publisherName,
+      verified: r.verificationStatus === "verified",
+      credibilityScore: computeCredibility(aggregates.get(r.publisherId) ?? []).credibilityScore,
+      createdAt: r.createdAt.toISOString(),
+    }));
   }
 
   return {
