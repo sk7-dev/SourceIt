@@ -24,8 +24,10 @@ registry.registerPath({
   security: authed,
   request: { body: { content: { "application/json": { schema: createPublisherRequestSchema } } } },
   responses: {
-    201: { description: "Created, verificationStatus=unverified", content: { "application/json": { schema: publisherSchema } } },
+    201: { description: "Created, verificationStatus=unverified; caller added as an owner member", content: { "application/json": { schema: publisherSchema } } },
     400: { description: "Validation failure", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    401: { description: "No valid session", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    409: { description: "That email is already registered to a different account", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
 
@@ -145,5 +147,6 @@ registry.registerPath({
   responses: {
     200: { description: "OK", content: { "application/json": { schema: publisherSchema } } },
     403: { description: "Not an admin", content: { "application/json": { schema: errorEnvelopeSchema } } },
+    404: { description: "No such publisher", content: { "application/json": { schema: errorEnvelopeSchema } } },
   },
 });
