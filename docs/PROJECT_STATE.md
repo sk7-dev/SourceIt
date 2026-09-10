@@ -1,40 +1,51 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 7  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring + Evidence + Review + Dispute slices complete, verified against a real Postgres
+**Last updated:** end of Sprint 8  ·  **Current phase:** Phase 4 (remaining slices) — Anchoring + Evidence + Review + Dispute + composed Verification read complete, verified against a real Postgres
 
 ## Resume here
 
-The Dispute slice is done. An approved, non-affiliated reviewer files a dispute
-against a published version (`POST /versions/{versionId}/disputes`); the
-disputed publisher's members can only append a `publisher_responded` event
-(`/respond`: a note and/or a `correctionVersionId` that must be a *published*
-version of the *disputed article*); the filer alone withdraws and the filer or
-a site admin resolves (`/resolve`); the publisher can never resolve, withdraw,
-hide, or delay it. Status is derived from the latest event (or `"open"`), the
-lifecycle is append-only (triggers), and once terminal
-(`withdrawn` / `resolved_*`) further events `409`. Both reads
-(`GET /versions/{id}/disputes`, `GET /disputes/{id}`) are public and 404 only a
-draft/unknown version. No migration — `disputes` / `dispute_events` and their
-triggers exist since Sprint 1. `Actor` gained a `role` field (used only by
-`dispute:resolve`). **Backend + tests only this sprint** — disputes have no UI
-in the Figma export and will reach the frontend through
-`GET /articles/{id}/verification`. See
-[SPRINT_7_REPORT.md](sprints/SPRINT_7_REPORT.md).
+`GET /articles/{articleId}/verification` is done — the composed public read the
+whole `/verification-result` page is built around. It returns the article, its
+current version + full published history, the current version's evidence and
+reviewer notes, the publisher (with a **derived** `credibilityScore` /
+`transparencyLevel`), the anchor record, any redaction, a derived 6-value
+**TrustStatus**, and the `trustSummary` facts. Unknown / archived / draft-only /
+non-UUID → `404 { trustStatus: "notfound", queriedId? }` (never the generic
+envelope). `VerificationResult.tsx` is now one request; `TrustSummaryCard` and
+`PublisherCredibility` are wired. No migration, no contract amendment — the
+schema and path existed since Sprint 1. See
+[SPRINT_8_REPORT.md](sprints/SPRINT_8_REPORT.md).
 
-`GET /articles/{id}/verification` is now **unblocked** — Evidence, Review, and
-Dispute all exist. That composed endpoint plus the derived TrustStatus is the
-natural next slice; it wires the last mock panels on `/verification-result`
-(TrustSummaryCard, PublisherCredibility).
+**TrustStatus** precedence (confirmed 2026-09-09):
+`notfound > disputed > publisher_unverified > authentic_under_review > updated >
+authentic`; anchor state is a separate track and not an input. **Credibility**
+(confirmed 2026-09-09):
+`score = clamp(0..100, round(60 + 40·verifiedRatio − 35·openDisputeRatio +
+10·correctionRatio))`, `transparencyLevel = clamp(1..5, 1 + round(4·correctionRatio))`,
+ratios over the publisher's published articles, `0 / 3` when it has none.
+Computed at read time in `apps/api/src/services/trust.ts`; the cached
+`publishers.credibility_score` column and `credibility_score_history` table are
+left for a future publisher-dashboard slice.
 
-Still mock / unbuilt, deliberately, after Sprint 7:
+**Biggest current limitation:** no code path moves a version from
+`pending_review` to `verified` (no reviewer/admin "verify version" endpoint; the
+append-only trigger forbids `UPDATE` on a non-draft row). So `authentic` and
+`updated` are **unreachable for API-created data today** — a real published
+article resolves to `authentic_under_review` / `disputed` /
+`publisher_unverified`. The derivation and the frontend handle all six; the two
+top values light up once version verification is built.
 
-- **`GET /articles/{id}/verification` unbuilt** (now unblocked). Needs the
-  credibility computation (the 3 frontend-shown factors) and a written
-  derivation for each of the 6 TrustStatus values.
-- **No dispute frontend** — no UI existed to wire; surfaces via the composed
-  endpoint. `ReviewsDisputes.tsx` (publisher-facing, reviews + disputes) still
-  untouched.
-- **No reviewer-facing write UI** (Sprint 6) — essentially no reviewer frontend
-  to reverse-engineer.
+Still mock / unbuilt, deliberately or blocked, after Sprint 8:
+
+- **No "verify this version" transition**, and no publisher-verification /
+  reviewer-approval decision endpoints — the Sprint 1 schema and the `admin`
+  role are ready for them. This is the natural next slice (makes
+  `authentic`/`updated` reachable, lights up both admin queues).
+- **`redaction` always `null` in practice** — no redaction rows, no redaction
+  endpoint; content-blanking for a redacted version is the unbuilt redaction
+  slice. The verification field is wired and will populate when it lands.
+- **No dispute frontend** — surfaces only via the composed endpoint's inputs
+  (openDisputeCount / trustStatus). `ReviewsDisputes.tsx` still untouched.
+- **No reviewer-facing write UI** (Sprint 6).
 - Carried from Sprint 5: evidence hashes not anchored; no real `ObjectStore` /
   `SourceArchiver` / evidence-blob-read endpoint; evidence frontend write path
   unwired.
@@ -54,12 +65,18 @@ Still mock / unbuilt, deliberately, after Sprint 7:
 | 5 | Evidence slice: multipart POST + public GET /versions/{id}/evidence, content-addressed ObjectStore + SourceArchiver seams (fakes), append-only, frontend evidence list | Complete with carryover | [SPRINT_5_REPORT.md](sprints/SPRINT_5_REPORT.md) |
 | 6 | Review slice: GET/POST /versions/{id}/reviews + POST /reviews/{id}/retract, approved-reviewer gate, structural COI, append-only retraction, frontend reviewer notes | Complete with carryover | [SPRINT_6_REPORT.md](sprints/SPRINT_6_REPORT.md) |
 | 7 | Dispute slice: 5 endpoints (file / list / get / respond / resolve), publisher-cannot-suppress enforced, terminal lifecycle, derived status, append-only — backend + tests only | Complete with carryover | [SPRINT_7_REPORT.md](sprints/SPRINT_7_REPORT.md) |
+| 8 | Composed GET /articles/{id}/verification: article + version history + evidence + reviews + publisher + anchor + redaction + derived TrustStatus + trustSummary; read-time credibility formula; VerificationResult on one call, TrustSummaryCard + PublisherCredibility wired | Complete with carryover | [SPRINT_8_REPORT.md](sprints/SPRINT_8_REPORT.md) |
 
 ## Current domain model
 
 Supersedes `docs/DOMAIN.md` where they disagree. 18 tables, **unchanged since
-Sprint 1** (Sprint 4 added columns to `anchor_batches`; Sprints 5–7 added no
+Sprint 1** (Sprint 4 added columns to `anchor_batches`; Sprints 5–8 added no
 schema at all — each built against Sprint 1 tables that already fit).
+
+TrustStatus and credibility are **computed at read time** by
+`GET /articles/{id}/verification` (Sprint 8), never stored — the cached
+`publishers.credibility_score` / `transparency_level` columns and
+`credibility_score_history` remain unwritten, for a later dashboard slice.
 
 ```
 Account ──has role──> reader | publisher | reviewer | admin
@@ -112,7 +129,7 @@ unblocked.
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` defines the full contract (33 endpoints); 20 are
+`packages/shared/openapi.json` defines the full contract (33 endpoints); 21 are
 implemented, all verified against a real database. `GET /healthz` / `GET /readyz`
 also exist but are intentionally not in `openapi.json`.
 
@@ -139,6 +156,7 @@ also exist but are intentionally not in `openapi.json`.
 | GET | /disputes/{disputeId} | public | 7 |
 | POST | /disputes/{disputeId}/respond | Clerk bearer token | 7 |
 | POST | /disputes/{disputeId}/resolve | Clerk bearer token | 7 |
+| GET | /articles/{articleId}/verification | public | 8 |
 
 ## Decisions
 
@@ -270,16 +288,47 @@ also exist but are intentionally not in `openapi.json`.
   (`requireActor`/`resolveOptionalActor` set it from the account row). Confirmed
   with the user: backend + tests only, terminal lifecycle. Revisit: never
   without an invariant change.
+- 2026-09-09 — `GET /articles/{id}/verification` (Sprint 8): TrustStatus is
+  derived at read time with precedence `notfound > disputed >
+  publisher_unverified > authentic_under_review > updated > authentic`; an open
+  dispute on the current version outranks all; anchor state (pending /
+  anchor_failed) is **not** an input (separate track, returned in
+  `anchorRecord`). 404 body is the special `{ trustStatus: "notfound",
+  queriedId? }`, never the generic error envelope; `queriedId` only for a
+  well-formed UUID. Confirmed with the user. Revisit: never without a
+  design-brief change to the status vocabulary.
+- 2026-09-09 — Credibility score is computed at read time from the 3 confirmed
+  factors as ratios over the publisher's published articles:
+  `score = clamp(0..100, round(60 + 40·verifiedRatio − 35·openDisputeRatio +
+  10·correctionRatio))`; `transparencyLevel = clamp(1..5, 1 +
+  round(4·correctionRatio))`; `0 / 3` for a publisher with no published
+  articles. Lives in `apps/api/src/services/trust.ts` (pure, unit-tested). The
+  cached `publishers.credibility_score` column and `credibility_score_history`
+  table are **not written** — deferred to a publisher-dashboard slice. Why:
+  build prompt "credibility is derived, never written; the computation is
+  published"; weights confirmed with the user. Revisit: as a versioned formula
+  change, not a silent tweak.
+- 2026-09-09 — `VerificationResult.tsx` makes a single
+  `GET /articles/{id}/verification` call; the per-entity endpoints it used
+  through Sprint 6 stay (other screens use them) but this page no longer calls
+  them. Five service mappers (`toApiArticle/Version/Evidence/Review/Dispute`)
+  are exported for the verification service to reuse so the composed response
+  can't drift. Confirmed with the user.
 
 ## Open questions
 
-None outstanding.
+- **How does a version reach `reviewStatus = 'verified'`?** No endpoint does
+  this and the append-only trigger blocks `UPDATE` on a non-draft row, so
+  `authentic` / `updated` are unreachable for API-created data. A reviewer/admin
+  "verify version" transition is needed (belongs with the reviewer-approval
+  flow). Cost of getting it wrong: medium — the two best TrustStatus outcomes
+  are dead until it exists.
 
 ## Known debt and deviations
 
-- **Docker is still never available in this environment**, across seven sprints.
+- **Docker is still never available in this environment**, across eight sprints.
   `docker compose up`, the Testcontainers test path, and CI have never actually
-  run here. Everything that mattered (all 6 migrations, seed, all 20 endpoints,
+  run here. Everything that mattered (all 6 migrations, seed, all 21 endpoints,
   the worker's full pipeline, the frontend flow) was verified via a scratch
   `embedded-postgres` outside the repo, torn down after. On Windows, a killed
   `embedded-postgres` launcher can leave an orphaned `postgres.exe` holding the
@@ -287,16 +336,31 @@ None outstanding.
   `Get-NetTCPConnection -LocalPort <port>`. What's left: confirm CI goes green on
   GitHub's runners once something is pushed, and confirm `docker compose up`.
 - **CI has never run.** Unchanged — nothing pushed since Sprint 2 added the
-  workflow. The new dispute suite and the Sprint 5 `@fastify/multipart`
-  dependency are picked up by the root `lint`/`typecheck`/`test` scripts, but the
-  workflow file itself still hasn't been reviewed for whether it runs them.
-- **`GET /articles/{id}/verification` unbuilt** (now unblocked — Evidence,
-  Review, Dispute all exist). It needs the credibility computation (the 3
-  frontend-shown factors) and a written derivation for each of the 6 TrustStatus
-  values. Until it lands, TrustSummaryCard and PublisherCredibility on
-  `/verification-result` stay mock.
+  workflow. The dispute + verification suites are picked up by the root
+  `lint`/`typecheck`/`test` scripts, but the workflow file itself still hasn't
+  been reviewed for whether it runs them.
+- **`authentic` / `updated` TrustStatus unreachable for API-created data** — no
+  version-verification transition exists; the append-only trigger blocks
+  `UPDATE` on a non-draft version. Real published articles resolve to
+  `authentic_under_review` / `disputed` / `publisher_unverified`. Repay by
+  building the reviewer/admin "verify version" endpoint.
+- **`GET /articles/{id}/verification` `redaction` is always `null`** — no
+  redaction rows, no redaction endpoint; content-blanking for a redacted
+  version is the unbuilt redaction slice. Field is wired.
+- **`registryMember` / `versionMatch` trustSummary facts are `true` on every
+  200** — a served published version *is* the registered record. They only
+  become discriminating if a future change can serve a registered-but-not-
+  matching version.
+- **Version-scoped `evidence` / `reviews` in the verification response are
+  fetched with `LIMIT 1000`** — fine at year-one volume; a huge set would
+  silently truncate. Repay with a count-and-cap or pagination if it matters.
 - **No dispute frontend**, and **`ReviewsDisputes.tsx` untouched.** No dispute UI
-  existed to wire; disputes reach the frontend via the composed endpoint.
+  existed to wire; disputes reach the frontend only via
+  `GET /articles/{id}/verification` inputs (openDisputeCount / trustStatus).
+- **`PublisherCredibility.tsx`'s "Correction History" box keeps its mock counts
+  for the no-`articleId` fallback** — the composed response doesn't carry
+  per-publisher aggregate counts (those live on `publisherAnalyticsSchema`, a
+  different endpoint).
 - **No reviewer-facing write UI** (Sprint 6). No reviewer frontend to
   reverse-engineer.
 - **`Actor.role` is typed `string`, not the `account_role` enum**, to keep
@@ -358,7 +422,7 @@ pnpm lint                                      # same four — 0 errors/warnings
 pnpm --filter @sourceit/shared db:migrate      # applies all 6 migrations for real — verified
 pnpm --filter @sourceit/shared seed            # verified against a real database
 pnpm --filter @sourceit/anchoring test         # 33/33 — verified
-TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 87/87 — verified (56 prior + 31 dispute)
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 110/110 — verified (87 prior + 12 trust unit + 11 verification)
 TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run                        # 7/7 — verified
 pnpm --filter @sourceit/shared openapi:generate && pnpm --filter @sourceit/shared client:generate  # regenerated, not hand-edited
 pnpm dev                                        # runs apps/api + apps/worker in parallel; both need ../../.env
