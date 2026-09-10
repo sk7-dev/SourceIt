@@ -19,6 +19,7 @@ import { registerAnchorRoute } from "./routes/anchor.route";
 import { registerEvidenceRoutes } from "./routes/evidence.route";
 import { registerReviewRoutes } from "./routes/reviews.route";
 import { registerDisputeRoutes } from "./routes/disputes.route";
+import { registerVerificationRoute } from "./routes/verification.route";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -87,6 +88,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerEvidenceRoutes(app);
   registerReviewRoutes(app);
   registerDisputeRoutes(app);
+  registerVerificationRoute(app);
 
   return app;
 }

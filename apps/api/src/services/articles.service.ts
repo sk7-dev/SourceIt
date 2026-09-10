@@ -31,7 +31,7 @@ export interface CreateVersionInput {
   submit: boolean;
 }
 
-function toApiVersion(version: {
+export function toApiVersion(version: {
   id: string;
   articleId: string;
   versionMajor: number;
@@ -74,7 +74,7 @@ function toApiVersion(version: {
   };
 }
 
-function toApiArticle(article: { id: string; publisherId: string; category: string; createdAt: Date }) {
+export function toApiArticle(article: { id: string; publisherId: string; category: string; createdAt: Date }) {
   return {
     id: article.id,
     publisherId: article.publisherId,

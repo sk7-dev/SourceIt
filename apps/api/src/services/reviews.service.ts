@@ -14,7 +14,7 @@ export interface CreateReviewInput {
 
 // The public reviewer identity is a pseudonym when the reviewer chose one;
 // accounts.fullName is never exposed here (build prompt / OPEN_QUESTIONS #10).
-function toApiReview(row: ReviewRow) {
+export function toApiReview(row: ReviewRow) {
   const displayName =
     !row.reviewerUseLegalName && row.reviewerPseudonym ? row.reviewerPseudonym : row.reviewerFullName;
   return {

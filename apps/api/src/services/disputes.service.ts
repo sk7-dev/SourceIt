@@ -17,7 +17,7 @@ function statusOf(events: DisputeEventRow[]): string {
   return events.length > 0 ? events[events.length - 1]!.eventType : "open";
 }
 
-function toApiDispute(dispute: DisputeRow, events: DisputeEventRow[]) {
+export function toApiDispute(dispute: DisputeRow, events: DisputeEventRow[]) {
   const displayName =
     !dispute.filerUseLegalName && dispute.filerPseudonym ? dispute.filerPseudonym : dispute.filerFullName;
   return {

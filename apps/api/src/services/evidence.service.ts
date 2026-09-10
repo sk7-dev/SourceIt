@@ -19,7 +19,7 @@ export interface AttachEvidenceInput {
   file?: { bytes: Uint8Array; contentType: string };
 }
 
-function toApiEvidence(row: {
+export function toApiEvidence(row: {
   id: string;
   articleVersionId: string;
   fileType: string;
