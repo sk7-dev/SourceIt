@@ -8,6 +8,7 @@ export * from "./articles";
 export * from "./anchoring";
 export * from "./evidence";
 export * from "./reviews";
+export * from "./verifications";
 export * from "./disputes";
 export * from "./redactions";
 export * from "./reader";

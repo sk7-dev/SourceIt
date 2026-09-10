@@ -10,6 +10,7 @@ import "./paths/reviewers";
 import "./paths/articles";
 import "./paths/evidence";
 import "./paths/reviews";
+import "./paths/verifications";
 import "./paths/disputes";
 import "./paths/redactions";
 import "./paths/anchoring";

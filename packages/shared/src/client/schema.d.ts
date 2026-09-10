@@ -1359,6 +1359,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/versions/{versionId}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify a published version — approved reviewer, no structural affiliation to the publisher (Sprint 11). Append-only; a version can be verified once. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    versionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VersionVerification"];
+                    };
+                };
+                /** @description Reviewer is affiliated with this publisher, or not an approved reviewer */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description No such published version (unknown, or still a draft) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description This version has already been verified */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/versions/{versionId}/disputes": {
         parameters: {
             query?: never;
@@ -2462,6 +2527,24 @@ export interface components {
         };
         RetractReviewRequest: {
             reason?: string;
+        };
+        VersionVerification: {
+            /**
+             * Format: uuid
+             * @example b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @example b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c
+             */
+            articleVersionId: string;
+            verifiedBy: components["schemas"]["ReviewerPublic"];
+            /**
+             * Format: date-time
+             * @example 2026-04-15T14:30:00Z
+             */
+            createdAt: string;
         };
         FileDisputeRequest: {
             reason: string;

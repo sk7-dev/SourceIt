@@ -1407,6 +1407,35 @@
           }
         }
       },
+      "VersionVerification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "articleVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+          },
+          "verifiedBy": {
+            "$ref": "#/components/schemas/ReviewerPublic"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-15T14:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "articleVersionId",
+          "verifiedBy",
+          "createdAt"
+        ]
+      },
       "FileDisputeRequest": {
         "type": "object",
         "properties": {
@@ -3262,6 +3291,73 @@
           },
           "409": {
             "description": "Review is already retracted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/versions/{versionId}/verify": {
+      "post": {
+        "tags": [
+          "Reviews"
+        ],
+        "summary": "Verify a published version — approved reviewer, no structural affiliation to the publisher (Sprint 11). Append-only; a version can be verified once.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionVerification"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Reviewer is affiliated with this publisher, or not an approved reviewer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such published version (unknown, or still a draft)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This version has already been verified",
             "content": {
               "application/json": {
                 "schema": {
