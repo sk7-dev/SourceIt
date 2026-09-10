@@ -19,6 +19,7 @@ import { registerAnchorRoute } from "./routes/anchor.route";
 import { registerEvidenceRoutes } from "./routes/evidence.route";
 import { registerReviewRoutes } from "./routes/reviews.route";
 import { registerVersionVerificationRoute } from "./routes/versionVerification.route";
+import { registerRedactionRoutes } from "./routes/redactions.route";
 import { registerDisputeRoutes } from "./routes/disputes.route";
 import { registerVerificationRoute } from "./routes/verification.route";
 import { registerAdminRoutes } from "./routes/admin.route";
@@ -91,6 +92,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerEvidenceRoutes(app);
   registerReviewRoutes(app);
   registerVersionVerificationRoute(app);
+  registerRedactionRoutes(app);
   registerDisputeRoutes(app);
   registerVerificationRoute(app);
   registerAdminRoutes(app);
