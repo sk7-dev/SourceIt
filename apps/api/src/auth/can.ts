@@ -26,6 +26,11 @@ export type Action =
   // don't disclose it").
   | { type: "review:create"; publisherId: string }
   | { type: "review:retract"; reviewerAccountId: string }
+  // Verifying a published version has the same gate as filing a review — an
+  // approved reviewer with no structural affiliation to the publisher. One
+  // verification moves the version to a `verified` trust output; a later dispute
+  // outranks it (Sprint 11).
+  | { type: "version:verify"; publisherId: string }
   // Filing a dispute has the same gate as a review — an approved reviewer with
   // no structural affiliation to the disputed publisher.
   | { type: "dispute:file"; publisherId: string }
@@ -60,7 +65,8 @@ export function createAuthorization(
         return publishersRepo.isVerified(action.publisherId);
       }
       case "review:create":
-      case "dispute:file": {
+      case "dispute:file":
+      case "version:verify": {
         const reviewer = await reviewersRepo.findByAccountId(actor.accountId);
         if (!reviewer || reviewer.approvalStatus !== "approved") return false;
         const affiliated = await publishersRepo.isMember(action.publisherId, actor.accountId);
@@ -94,6 +100,8 @@ function describeDenial(action: Action): string {
       return "Only an approved reviewer with no affiliation to this publisher can review its articles";
     case "dispute:file":
       return "Only an approved reviewer with no affiliation to this publisher can dispute its articles";
+    case "version:verify":
+      return "Only an approved reviewer with no affiliation to this publisher can verify its versions";
     case "review:retract":
       return "Only the reviewer who wrote a review can retract it";
     case "dispute:withdraw":
