@@ -98,10 +98,44 @@ transaction (`chainTxHash`, `blockHeight`) independently of SourceIt.
   `{ chainTxHash, blockHeight, confirmations }`, and `getReceipt(merkleRoot)`
   for polling. `submit` **must be idempotent on `merkleRoot`** — resubmitting a
   root returns the same transaction, never a second one.
-- Sprint 4 ships one implementation: `createFakeAnchorProvider`, in-memory,
-  which "mines" every root immediately with a deterministic synthetic
-  transaction hash. A real L2 provider plugs in at the same interface with no
-  change to the worker or the schema.
+- Two implementations ship (the interface, worker, and schema are identical for
+  both):
+  - **`createFakeAnchorProvider`** (`packages/anchoring`) — in-memory, "mines"
+    every root immediately with a deterministic synthetic transaction hash. The
+    default for dev / CI; used whenever `ANCHOR_RPC_URL` is unset.
+  - **`createChainAnchorProvider`** (`apps/worker/src/chainAnchorProvider.ts`,
+    Sprint 16) — anchors on a real EVM chain (Base Sepolia now; mainnet is a
+    config change). One transaction per batch calls `anchor(bytes32 root)` on
+    the **Anchor contract** (`packages/anchoring-contract/contracts/Anchor.sol`):
+
+    ```solidity
+    mapping(bytes32 => bool) public anchored;
+    event Anchored(bytes32 indexed root, address indexed sender, uint256 blockNumber);
+    function anchor(bytes32 root) external {
+        if (anchored[root]) revert AlreadyAnchored(root);
+        anchored[root] = true;
+        emit Anchored(root, msg.sender, block.number);
+    }
+    ```
+
+    Idempotency is met without any local state: `submit` first filters the
+    `Anchored` log for the exact root (indexed topic) — if it exists, that
+    transaction is returned and nothing is sent. The contract's revert-on-repeat
+    closes the race between two worker instances; on that revert the provider
+    re-reads the log. `getReceipt` is the same log lookup and throws for a root
+    that was never anchored, exactly like the fake. Confirmations are
+    `currentBlock − anchorBlock + 1`.
+
+    The signer is a dedicated private key in the worker env
+    (`ANCHOR_SIGNER_PRIVATE_KEY`), faucet-funded — end users never touch a
+    wallet or gas (build prompt). Config:
+    `ANCHOR_RPC_URL` / `ANCHOR_CHAIN_ID` / `ANCHOR_CONTRACT_ADDRESS` /
+    `ANCHOR_SIGNER_PRIVATE_KEY` / `ANCHOR_CONTRACT_DEPLOY_BLOCK` — all four of
+    the first are required together, or the process refuses to start.
+
+Adding the chain provider is **not** a change to this spec's frozen constants —
+the leaf preimage, hashing, tree, leaf order, and proof format are untouched. A
+root anchored by the fake and the same root anchored on-chain are byte-identical.
 
 ## Worker
 
@@ -114,7 +148,7 @@ transaction (`chainTxHash`, `blockHeight`) independently of SourceIt.
    order, `provider.submit(root)`, then store `merkle_root`, `chain_tx_hash`,
    `submitted_at` and set `status = 'submitted'`.
 3. **Confirm** each `submitted` batch: `provider.getReceipt(root)`; once
-   `confirmations >= FAKE_ANCHOR_CONFIRMATIONS` (default 1), write each record's
+   `confirmations >= ANCHOR_CONFIRMATIONS` (default 1), write each record's
    `merkle_proof`, `block_height`, `chain_confirmations`, `anchored_at`, set the
    record `status = 'anchored'`, and set the batch `status = 'confirmed'`,
    `confirmed_at`.

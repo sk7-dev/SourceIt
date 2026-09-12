@@ -1,0 +1,76 @@
+{
+  "contractName": "Anchor",
+  "solcVersion": "0.8.24+commit.e11b9ed9.Emscripten.clang",
+  "sourceSha256": "2521f7a4eafdf01284a730b0f5c361a0c5216ccaa72bf8800223b395c30299e7",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "root",
+          "type": "bytes32"
+        }
+      ],
+      "name": "AlreadyAnchored",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "root",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "blockNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "Anchored",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "root",
+          "type": "bytes32"
+        }
+      ],
+      "name": "anchor",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "anchored",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b50610167806100206000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c8063dd6491461461003b578063eecdf92714610072575b600080fd5b61005e610049366004610118565b60006020819052908152604090205460ff1681565b604051901515815260200160405180910390f35b610085610080366004610118565b610087565b005b60008181526020819052604090205460ff16156100be576040516330d2381360e01b81526004810182905260240160405180910390fd5b60008181526020819052604090819020805460ff1916600117905551339082907ffe2289542f7a0110ac112c3a4d712afdcaaf2900a1326f4e6f340b563a0e87349061010d9043815260200190565b60405180910390a350565b60006020828403121561012a57600080fd5b503591905056fea2646970667358221220568ed7ae861455295c94f339fc20a5b85b732d27671fd40dd53803ba2dcddd2464736f6c63430008180033"
+}

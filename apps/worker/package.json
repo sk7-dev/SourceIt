@@ -13,9 +13,11 @@
   },
   "dependencies": {
     "@sourceit/anchoring": "workspace:*",
+    "@sourceit/anchoring-contract": "workspace:*",
     "@sourceit/shared": "workspace:*",
     "drizzle-orm": "^0.36.4",
     "pg": "^8.13.1",
+    "viem": "^2.21.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

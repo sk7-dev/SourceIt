@@ -17,8 +17,16 @@ export default tseslint.config(
     },
   },
   {
-    // Plain-Node CommonJS test fixtures (spawned as subprocesses) aren't part
-    // of the TS/ESM sources.
-    ignores: ["**/dist/**", "**/node_modules/**", "**/migrations/**", "**/test/fixtures/**"],
+    // Not TS/ESM app sources: build output, deps, hand-written SQL, plain-Node
+    // CJS test fixtures spawned as subprocesses, and the contract package's
+    // build/deploy .mjs scripts.
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/migrations/**",
+      "**/test/fixtures/**",
+      "packages/anchoring-contract/scripts/**",
+      "packages/anchoring-contract/artifacts/**",
+    ],
   },
 );
