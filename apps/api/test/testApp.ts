@@ -6,6 +6,7 @@ import { Pool } from "pg";
 import { migrationsPath, schema } from "@sourceit/shared";
 import { buildApp } from "../src/app";
 import type { SessionVerifier } from "../src/auth/verifySession";
+import { createFakeSourceArchiver } from "../src/storage/sourceArchiver";
 
 // Integration tests hit real HTTP against a real database (build prompt
 // Section 3) — normally a disposable Postgres via Testcontainers, with both
@@ -43,7 +44,18 @@ export async function startTestApp(
   // Rate limiting is off by default here — a suite of hundreds of app.inject
   // calls all originate from 127.0.0.1. `reader.integration`'s dedicated
   // rate-limit test passes an explicit low override.
-  const app = await buildApp({ db, verifySession: fakeVerifySession, rateLimit: rateLimitOverride ?? false });
+  //
+  // sourceArchiver is pinned to the deterministic fake — the real one
+  // (Sprint 18) is a guarded network fetch, and this suite has no network
+  // access and needs predictable snapshot bytes (evidence.integration.test.ts
+  // asserts `archived-snapshot:<url>` for tag=source). Same reasoning as
+  // substituting verifySession above.
+  const app = await buildApp({
+    db,
+    verifySession: fakeVerifySession,
+    sourceArchiver: createFakeSourceArchiver(),
+    rateLimit: rateLimitOverride ?? false,
+  });
   await app.ready();
 
   return {

@@ -7,7 +7,7 @@ import { env } from "./env";
 import { db as defaultDb } from "./db";
 import { createInMemoryObjectStore, type ObjectStore } from "./storage/objectStore";
 import { createS3ObjectStore } from "./storage/s3ObjectStore";
-import { createFakeSourceArchiver, type SourceArchiver } from "./storage/sourceArchiver";
+import { createGuardedSourceArchiver, type SourceArchiver } from "./storage/sourceArchiver";
 import { verifyClerkSession, type SessionVerifier } from "./auth/verifySession";
 import { createRequireActor, createResolveOptionalActor } from "./auth/requireActor";
 import { createAccountsRepository } from "./repositories/accounts.repository";
@@ -42,9 +42,10 @@ declare module "fastify" {
 export interface BuildAppOptions {
   db?: typeof defaultDb;
   verifySession?: SessionVerifier;
-  // Both default to the in-memory / fake implementation — a real object store
-  // and a real guarded URL archiver are later, swappable concerns (see the
-  // storage/ modules and docs/PROJECT_STATE.md).
+  // objectStore defaults to the in-memory fake unless OBJECT_STORE_BUCKET is
+  // set (Sprint 17); sourceArchiver defaults to the real SSRF-guarded fetch
+  // (Sprint 18) — tests pass the deterministic fake explicitly (see
+  // test/testApp.ts). Both are swappable via these options regardless.
   objectStore?: ObjectStore;
   sourceArchiver?: SourceArchiver;
   // Rate limiting (Phase 5). Defaults to the env-configured limits; pass
@@ -110,7 +111,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       })
     : createInMemoryObjectStore();
   app.decorate("objectStore", options.objectStore ?? defaultObjectStore);
-  app.decorate("sourceArchiver", options.sourceArchiver ?? createFakeSourceArchiver());
+  app.decorate("sourceArchiver", options.sourceArchiver ?? createGuardedSourceArchiver());
   app.decorate("verifySession", options.verifySession ?? verifyClerkSession);
 
   const accountsRepo = createAccountsRepository(db);
