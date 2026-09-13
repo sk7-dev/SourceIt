@@ -1,0 +1,32 @@
+name: Anchor tick
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Fake in-memory anchor provider (no real chain) by default — leave it
+      # this way unless you've deployed the Anchor contract and funded a
+      # signer. If you do move to a real chain later, add the ANCHOR_RPC_URL /
+      # ANCHOR_CHAIN_ID / ANCHOR_CONTRACT_ADDRESS / ANCHOR_SIGNER_PRIVATE_KEY
+      # secrets and add matching `env:` lines here — a secret that isn't set
+      # resolves to an empty string, not an absent variable, which fails this
+      # app's optional-env validation, so don't reference an unset secret.
+      - run: pnpm --filter @sourceit/worker exec tsx src/tickOnce.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
