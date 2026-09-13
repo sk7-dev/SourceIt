@@ -1,9 +1,10 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { describe, expect, it, afterEach, vi } from "vitest";
 import {
   createGuardedSourceArchiver,
   isBlockedAddress,
   nodeHttpPerformHop,
+  type GuardedSourceArchiverDeps,
   type ResolvedAddress,
 } from "../src/storage/sourceArchiver";
 import { ValidationError } from "../src/errors";
@@ -43,7 +44,7 @@ describe("isBlockedAddress", () => {
 describe("createGuardedSourceArchiver (orchestration, injected deps)", () => {
   function archiverWith(opts: {
     resolveAddresses?: (hostname: string) => Promise<ResolvedAddress[]>;
-    performHop?: Parameters<typeof createGuardedSourceArchiver>[0]["performHop"];
+    performHop?: GuardedSourceArchiverDeps["performHop"];
   }) {
     return createGuardedSourceArchiver({
       resolveAddresses: opts.resolveAddresses ?? (async () => [{ address: "8.8.8.8", family: 4 }]),
@@ -156,7 +157,7 @@ describe("nodeHttpPerformHop (real transport, against a local server)", () => {
     }
   });
 
-  async function listen(handler: Parameters<typeof createServer>[0]): Promise<number> {
+  async function listen(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<number> {
     server = createServer(handler);
     await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
     return (server!.address() as { port: number }).port;
