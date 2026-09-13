@@ -110,7 +110,7 @@ says.
 | Attach evidence to a version that is not yours | `evidence:attach` = membership of the owning publisher. |
 | Swap evidence after a version is submitted | Evidence attaches only while the version is a `draft`; once it leaves draft the set is frozen (409) and `evidence` rows are append-only. |
 | Oversized upload to exhaust memory / disk | `@fastify/multipart` `fileSize: 25 MB`, `files: 1`, `fields: 16`; an over-limit stream is rejected `413 PAYLOAD_TOO_LARGE`. |
-| `tag=source` pointing at an internal URL (SSRF) | **Open** — `createFakeSourceArchiver` does not touch the network, so there is no SSRF today; a real `SourceArchiver` must fetch only allow-listed schemes/hosts, block private / link-local / metadata IPs, cap size and redirects, and time out. This is the single most important item for the "real archiver" slice. |
+| `tag=source` pointing at an internal URL (SSRF) | **Closed** (Sprint 18) — `createGuardedSourceArchiver` (`apps/api/src/storage/sourceArchiver.ts`) resolves the hostname via DNS and rejects the request if any resolved address (or a redirect target's) falls in a private / loopback / link-local / CGNAT / multicast range, including the 169.254.169.254 cloud metadata address and an IPv4-mapped-IPv6 literal. The actual socket connects to the pre-resolved, already-validated address (a custom `lookup`), closing the DNS-rebinding TOCTOU gap between check and connect. Only `http:`/`https:` schemes are allowed; redirects are followed manually (max 5 hops), re-validating every hop the same way as the first; the response body is capped at 25 MB and each hop times out at 15s. |
 | Enumerate evidence ids to find files that aren't attached to a version they belong to | `GET .../evidence/{evidenceId}/file` checks `evidence.article_version_id === versionId` — an id that exists but belongs elsewhere 404s, same as an unknown id. |
 | Read a file whose version is still a private draft | The file endpoint 404s while the owning version is a draft, same as the listing. |
 | A leaked "View File" link keeps working forever | The presigned URL expires (`OBJECT_STORE_SIGNED_URL_TTL_SECONDS`, default 15 min); the bucket itself is private, so there is no stable public URL to leak in the first place — only a fresh, short-lived one per click. |
@@ -135,3 +135,8 @@ says.
   swap documented in the runbook.
 - **`Actor.role` is a bare string** compared `=== "admin"` — fine today; tighten
   to the enum if `role` gains more comparisons.
+- **The SSRF guard blocks by IP range, not by hostname allow-list** — any
+  public host is reachable (by design, since a "source" can be any public
+  article URL), and it does not restrict destination ports. A public host
+  that itself proxies to an internal service is outside this guard's reach;
+  standard for this class of defense and not treated as a gap here.
