@@ -332,4 +332,85 @@ describe("Evidence vertical slice", () => {
       ctx.db.update(schema.evidence).set({ caption: "tampered" }).where(eq(schema.evidence.id, evidenceId)),
     ).rejects.toThrow(/append-only/);
   });
+
+  describe("GET /versions/:versionId/evidence/:evidenceId/file", () => {
+    async function createSubmittedWithEvidence() {
+      const draft = await ctx.app.inject({
+        method: "POST",
+        url: "/articles",
+        headers: { authorization: `Bearer ${ownerToken}` },
+        payload: {
+          publisherId: ownerPublisherId,
+          category: "technology",
+          headline: "File Endpoint",
+          summary: "s",
+          content: "c",
+          authorName: "a",
+          submit: false,
+        },
+      });
+      const articleId = draft.json().article.id as string;
+      const versionId = draft.json().version.id as string;
+
+      const evRes = await post(
+        versionId,
+        multipart(fileFields, { name: "file", filename: "r.pdf", contentType: "application/pdf", content: "endpoint bytes" }),
+      );
+      const evidenceId = evRes.json().id as string;
+      const contentHash = evRes.json().contentHash as string;
+
+      await ctx.app.inject({
+        method: "PATCH",
+        url: `/articles/${articleId}/versions/${versionId}`,
+        headers: { authorization: `Bearer ${ownerToken}` },
+        payload: { headline: "File Endpoint", summary: "s", content: "c", authorName: "a", changeType: "original_published", submit: true },
+      });
+
+      return { articleId, versionId, evidenceId, contentHash };
+    }
+
+    it("redirects to a signed URL for the file", async () => {
+      const { versionId, evidenceId, contentHash } = await createSubmittedWithEvidence();
+      const res = await ctx.app.inject({ method: "GET", url: `/versions/${versionId}/evidence/${evidenceId}/file` });
+      expect(res.statusCode).toBe(302);
+      // The default in-memory ObjectStore (no OBJECT_STORE_BUCKET configured)
+      // returns this deterministic placeholder — see storage/objectStore.ts.
+      expect(res.headers.location).toBe(`memory://unconfigured-object-store/evidence/${contentHash}`);
+    });
+
+    it("404s an unknown version", async () => {
+      const res = await ctx.app.inject({
+        method: "GET",
+        url: "/versions/00000000-0000-0000-0000-000000000000/evidence/00000000-0000-0000-0000-000000000000/file",
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("404s while the version is still a draft — existence not leaked", async () => {
+      const versionId = await createDraft();
+      const evRes = await post(
+        versionId,
+        multipart(fileFields, { name: "file", filename: "r.pdf", contentType: "application/pdf", content: "x" }),
+      );
+      const evidenceId = evRes.json().id as string;
+      const res = await ctx.app.inject({ method: "GET", url: `/versions/${versionId}/evidence/${evidenceId}/file` });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("404s an unknown evidence id on a real version", async () => {
+      const { versionId } = await createSubmittedWithEvidence();
+      const res = await ctx.app.inject({
+        method: "GET",
+        url: `/versions/${versionId}/evidence/00000000-0000-0000-0000-000000000000/file`,
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("404s when the evidence belongs to a different version", async () => {
+      const a = await createSubmittedWithEvidence();
+      const b = await createSubmittedWithEvidence();
+      const res = await ctx.app.inject({ method: "GET", url: `/versions/${a.versionId}/evidence/${b.evidenceId}/file` });
+      expect(res.statusCode).toBe(404);
+    });
+  });
 });

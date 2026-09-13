@@ -3186,6 +3186,51 @@
         }
       }
     },
+    "/versions/{versionId}/evidence/{evidenceId}/file": {
+      "get": {
+        "tags": [
+          "Evidence"
+        ],
+        "summary": "Redirect to a short-lived signed URL for this evidence file (EvidenceSection.tsx 'View File'). Public, like the listing; the bucket itself is private and a fresh link is minted per call.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "b3f1c9a0-1e2d-4a3b-9c8f-6d5e4f3a2b1c"
+            },
+            "required": true,
+            "name": "evidenceId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to a signed URL, valid briefly"
+          },
+          "404": {
+            "description": "No such published version, or no such evidence on it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/versions/{versionId}/reviews": {
       "get": {
         "tags": [

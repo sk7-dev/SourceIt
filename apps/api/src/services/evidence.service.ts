@@ -64,6 +64,21 @@ export function createEvidenceService(
       return { items: items.map(toApiEvidence), nextCursor };
     },
 
+    // GET /versions/{versionId}/evidence/{evidenceId}/file — public, like the
+    // listing. A short-lived signed URL, minted fresh on every call; the
+    // bucket itself is private (Sprint 17).
+    async getFileUrl(versionId: string, evidenceId: string) {
+      const version = await repo.findVersionWithPublisher(versionId);
+      if (!version || version.reviewStatus === "draft") {
+        throw new NotFoundError("No such published version");
+      }
+      const row = await repo.findEvidenceById(evidenceId);
+      if (!row || row.articleVersionId !== versionId) {
+        throw new NotFoundError("No such evidence for this version");
+      }
+      return store.getSignedUrl(row.storageKey);
+    },
+
     // POST /versions/{versionId}/evidence — attach evidence while the version
     // is still a draft. Once it leaves draft the evidence set is frozen with it
     // (append-only: `evidence_append_only` trigger, build prompt invariant

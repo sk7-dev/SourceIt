@@ -3,6 +3,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { FileText, Image, Video, ExternalLink } from "lucide-react";
 import type { components } from "@sourceit/shared/client";
+import { API_BASE_URL } from "../../lib/apiClient";
 
 type Evidence = components["schemas"]["Evidence"];
 
@@ -76,6 +77,7 @@ export default function EvidenceSection({ evidence }: { evidence?: Evidence[] | 
           badge: m.note,
           badgeColor: m.noteColor,
           archived: false,
+          fileUrl: null as string | null,
         }))
       : evidence.map((e) => {
           const style = fileTypeStyle[e.fileType];
@@ -88,6 +90,9 @@ export default function EvidenceSection({ evidence }: { evidence?: Evidence[] | 
             badge: e.caption ? `${tagLabel[e.tag]} · ${e.caption}` : tagLabel[e.tag],
             badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
             archived: e.isArchivedSnapshot,
+            // A fresh signed URL is minted on every click (GET redirects
+            // straight to it) — never baked into the list response.
+            fileUrl: `${API_BASE_URL}/versions/${e.articleVersionId}/evidence/${e.id}/file`,
           };
         });
 
@@ -126,7 +131,12 @@ export default function EvidenceSection({ evidence }: { evidence?: Evidence[] | 
                     </div>
                   </div>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!item.fileUrl}
+                  onClick={() => item.fileUrl && window.open(item.fileUrl, "_blank", "noopener,noreferrer")}
+                >
                   <ExternalLink className="w-4 h-4 mr-2" />
                   View File
                 </Button>

@@ -6,6 +6,7 @@ import { configureRateLimit } from "./plugins/rateLimit";
 import { env } from "./env";
 import { db as defaultDb } from "./db";
 import { createInMemoryObjectStore, type ObjectStore } from "./storage/objectStore";
+import { createS3ObjectStore } from "./storage/s3ObjectStore";
 import { createFakeSourceArchiver, type SourceArchiver } from "./storage/sourceArchiver";
 import { verifyClerkSession, type SessionVerifier } from "./auth/verifySession";
 import { createRequireActor, createResolveOptionalActor } from "./auth/requireActor";
@@ -94,7 +95,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   const db = options.db ?? defaultDb;
   app.decorate("db", db);
-  app.decorate("objectStore", options.objectStore ?? createInMemoryObjectStore());
+  // Real S3-compatible storage when OBJECT_STORE_BUCKET is configured (Sprint
+  // 17); the in-memory fake otherwise (dev / CI). An explicit `options.objectStore`
+  // (tests) always wins.
+  const defaultObjectStore = env.OBJECT_STORE_BUCKET
+    ? createS3ObjectStore({
+        bucket: env.OBJECT_STORE_BUCKET,
+        region: env.OBJECT_STORE_REGION!,
+        accessKeyId: env.OBJECT_STORE_ACCESS_KEY_ID!,
+        secretAccessKey: env.OBJECT_STORE_SECRET_ACCESS_KEY!,
+        endpoint: env.OBJECT_STORE_ENDPOINT,
+        forcePathStyle: env.OBJECT_STORE_FORCE_PATH_STYLE,
+        signedUrlExpirySeconds: env.OBJECT_STORE_SIGNED_URL_TTL_SECONDS,
+      })
+    : createInMemoryObjectStore();
+  app.decorate("objectStore", options.objectStore ?? defaultObjectStore);
   app.decorate("sourceArchiver", options.sourceArchiver ?? createFakeSourceArchiver());
   app.decorate("verifySession", options.verifySession ?? verifyClerkSession);
 

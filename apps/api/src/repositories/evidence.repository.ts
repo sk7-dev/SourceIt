@@ -21,6 +21,11 @@ export function createEvidenceRepository(db: typeof Db) {
       return row ?? null;
     },
 
+    async findEvidenceById(evidenceId: string) {
+      const [row] = await db.select().from(schema.evidence).where(eq(schema.evidence.id, evidenceId)).limit(1);
+      return row ?? null;
+    },
+
     async createEvidence(input: {
       articleVersionId: string;
       fileType: "image" | "video" | "document";

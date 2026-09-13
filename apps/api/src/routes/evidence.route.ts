@@ -12,8 +12,9 @@ import { createAuthorization } from "../auth/can";
 import { createEvidenceService } from "../services/evidence.service";
 import { ValidationError } from "../errors";
 
-// GET /versions/{versionId}/evidence  — public (EvidenceSection.tsx)
-// POST /versions/{versionId}/evidence — authed, multipart/form-data (MediaEvidenceUpload.tsx)
+// GET /versions/{versionId}/evidence                     — public (EvidenceSection.tsx)
+// POST /versions/{versionId}/evidence                     — authed, multipart/form-data (MediaEvidenceUpload.tsx)
+// GET /versions/{versionId}/evidence/{evidenceId}/file    — public, redirects to a signed URL ("View File")
 export function registerEvidenceRoutes(app: FastifyInstance) {
   const repo = createEvidenceRepository(app.db);
   const publishersRepo = createPublishersRepository(app.db);
@@ -59,6 +60,14 @@ export function registerEvidenceRoutes(app: FastifyInstance) {
       });
       reply.status(201);
       return evidenceSchema.parse(created);
+    },
+  );
+
+  app.get<{ Params: { versionId: string; evidenceId: string } }>(
+    "/versions/:versionId/evidence/:evidenceId/file",
+    async (request, reply) => {
+      const url = await service.getFileUrl(request.params.versionId, request.params.evidenceId);
+      reply.redirect(url);
     },
   );
 }

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { createApiClient } from "@sourceit/shared/client";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 
 // Public reads (verification, version history) never need a token — creating
 // the client without a `getToken` callback still works fine for those calls,

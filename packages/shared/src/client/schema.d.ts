@@ -1256,6 +1256,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/versions/{versionId}/evidence/{evidenceId}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Redirect to a short-lived signed URL for this evidence file (EvidenceSection.tsx 'View File'). Public, like the listing; the bucket itself is private and a fresh link is minted per call. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    versionId: string;
+                    evidenceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Redirect to a signed URL, valid briefly */
+                302: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such published version, or no such evidence on it */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/versions/{versionId}/reviews": {
         parameters: {
             query?: never;
