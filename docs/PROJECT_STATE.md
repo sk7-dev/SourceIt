@@ -1,13 +1,70 @@
 # SourceIt — Project State
-**Last updated:** end of Sprint 15  ·  **Current phase:** Phase 5 complete — the build-prompt phase structure is done
+**Last updated:** end of Sprint 17  ·  **Current phase:** build-prompt phases done (0–5) — now on the real external integrations
 
-> **Sprint 15 is awaiting commit** — the working tree holds it. Commit plan is
-> in the closing message. Sprint 14 was committed (git log confirms).
+> **Sprints 0–15 are committed and pushed to `origin/main`; CI on GitHub is
+> green** (`pnpm install --frozen-lockfile` / `lint` / `typecheck` / `test`, the
+> full Testcontainers-backed suite, on a clean `ubuntu-latest` runner).
+> **Sprints 16–17 are awaiting commit** — the working tree holds both.
 
 ## Resume here
 
-**Phase 5 (Hardening) is done.** Phases 0–4 built the contract, skeleton, and
-every vertical slice (all 44 `openapi.json` operations); Sprint 15 hardened it:
+**Evidence files are real** (Sprint 17). With `OBJECT_STORE_BUCKET` set, `apps/api`
+stores evidence bytes in a real S3-compatible bucket (AWS S3, R2, B2, MinIO —
+`apps/api/src/storage/s3ObjectStore.ts`, `@aws-sdk/client-s3` +
+`@aws-sdk/s3-request-presigner`), and the new public
+`GET /versions/{id}/evidence/{evidenceId}/file` mints a short-lived signed URL on
+every call and `302`s to it. The bucket stays private — confirmed with the user
+over the alternative (a public-read bucket with a stable baked-in URL). Unset →
+the in-memory fake (dev / CI), whose `getSignedUrl` returns a deterministic,
+obviously-inert `memory://unconfigured-object-store/<key>` placeholder. The
+"View File" button in `EvidenceSection.tsx`, inert since it was built, now
+opens the real file for real evidence rows.
+
+- **`getSignedUrl` is fully unit-tested without a real bucket** — SigV4 signing
+  is a local computation, so a real `S3Client` with dummy credentials produces
+  a real, inspectable URL with no network call (`test/s3ObjectStore.unit.test.ts`,
+  6 tests, also covering the idempotent-`put`-via-`HeadObject` check and `get`).
+  Only the actual HTTP round-trip to a live bucket is unverified here.
+- **No schema change** — `evidence.storage_key` (content-addressed, since
+  Sprint 5) is reused unchanged as the object key.
+- **Not built**: the real `SourceArchiver` (SSRF-guarded) is still the other
+  named fake from Evidence's "third-party systems in scope"; see
+  [SPRINT_17_REPORT.md](sprints/SPRINT_17_REPORT.md).
+
+Before Sprint 17: **the chain is real** (Sprint 16). With `ANCHOR_RPC_URL` set, the worker anchors
+each Merkle batch by sending one `anchor(bytes32 root)` transaction to a
+deployed **Anchor contract** (`packages/anchoring-contract/contracts/Anchor.sol`
+— a `mapping(bytes32=>bool)` guard + `Anchored(bytes32 indexed root, …)` event),
+and `GET /versions/{id}/anchor` returns a real `chainTxHash` / `blockHeight` an
+independent verifier checks against the chain. Unset → the in-memory fake
+(dev / CI), unchanged.
+
+- **`apps/worker/src/chainAnchorProvider.ts`** — `createChainAnchorProvider(ops)`
+  (pure logic) + `createViemChainOps(config)` (viem seam). `submit` filters the
+  `Anchored` log by the indexed root first (idempotent, no local state needed),
+  else calls `anchor()` and waits; the contract's revert-on-repeat closes the
+  two-instance race. `getReceipt` is the same log lookup and throws for an
+  unknown root, exactly like the fake.
+- **`packages/anchoring` stays zero-dependency** (interface + fake only). viem
+  is a worker dep; the contract source + compiled artifact + compile/deploy
+  scripts are the new `@sourceit/anchoring-contract` package (`solc` / `viem`
+  are its devDeps only).
+- **Env** (`apps/worker`): `FAKE_ANCHOR_CONFIRMATIONS` → `ANCHOR_CONFIRMATIONS`;
+  `ANCHOR_RPC_URL` / `ANCHOR_CHAIN_ID` / `ANCHOR_CONTRACT_ADDRESS` /
+  `ANCHOR_SIGNER_PRIVATE_KEY` / `ANCHOR_CONTRACT_DEPLOY_BLOCK` (the first four
+  required together, boot-time refinement). Signer is a raw env key,
+  faucet-funded — end users touch no wallet or gas.
+- **Not run**: the live testnet path (no deployed contract, no funded key — same
+  class of gap as `docker compose up`). 8 unit tests cover the provider against
+  a contract-faithful in-memory model; the live e2e test is env-gated.
+  `docs/RUNBOOK.md` has the deploy + fund + rotate + cutover steps.
+
+Base Sepolia was the confirmed chain; mainnet is a config change. Not a spec
+change — `docs/ANCHORING.md`'s frozen root/proof/hash constants are untouched.
+
+Before Sprint 16: **Phase 5 (Hardening)** — Sprint 15 added per-IP rate
+limiting, a clean error envelope for framework 4xx, an N+1/`EXPLAIN` audit +
+`0008` indexes, and `RUNBOOK.md` / `THREAT_MODEL.md` / `PERFORMANCE.md`. Details:
 
 - **Rate limiting** (`apps/api/src/plugins/rateLimit.ts`, `@fastify/rate-limit`):
   one global per-IP budget for reads (`RATE_LIMIT_MAX`, default 300 / minute), a
@@ -50,25 +107,40 @@ state and redaction are separate tracks. All six values reachable.
 score-moving events (Sprint 14); the cached `publishers.credibility_score`
 column is still never written.
 
-**Biggest current gap:** **nothing has been pushed since Sprint 2 — CI and
-`docker compose up` have never run.** That is now the single highest-value
-action. After it, the remaining work is the real external integrations (see
-below), not build-prompt phases.
+**Biggest current gap:** the remaining **real external integration** — the
+`SourceArchiver` (SSRF-guarded) — is still a fake; the Sprint 16 chain provider
+has not had its **live testnet run** (deploy the contract + fund a key); and no
+real bucket has been provisioned or exercised end to end here. The build-prompt
+phases are done and CI is green.
 
-Still mock / unbuilt, deliberately or blocked, after Sprint 15:
+Still mock / unbuilt, deliberately or blocked, after Sprint 17:
 
-- **CI has never run**; nothing pushed since Sprint 2.
+- **No real bucket provisioned or exercised end to end** — no cloud
+  account/credentials in this environment. The store's logic (signing,
+  idempotent put, get, not-found) is fully unit-tested against a real
+  `S3Client` with dummy credentials; only the live HTTP round-trip is unrun.
+  `RUNBOOK.md` → "Object storage" has the setup + sanity-check steps.
+- **Object storage credentials are a static access key** in `api`'s env, scoped
+  to one bucket — a future pass could move to short-lived STS credentials.
+- **The chain provider has not run against a live chain** — the contract is not
+  deployed and there is no funded signer here. Unit-verified against a
+  contract-faithful model; the live e2e test is env-gated; `RUNBOOK.md` →
+  "Chain anchoring" has the deploy/fund/rotate steps.
+- **`docker compose up` still unverified here** — no Docker in this dev
+  environment. CI proves the Testcontainers path works on GitHub's runners; a
+  local `docker compose up` has never been run.
 - **Backups + restore are documented, not executed** (`RUNBOOK.md`) — needs a
   deployment.
 - **No error-tracking vendor** — structured logs + a `fingerprint` grouping
   key; alerting is the deploy platform's job.
 - **Rate limiting is per-instance** — exact cross-instance limits need the Redis
   store (documented).
-- **No real chain `AnchorProvider`** — the chain root of trust is a fake. The
-  Merkle spec / proof format are frozen and third-party-verifiable; only chain
-  submission is stubbed.
-- **No real `ObjectStore`**, **no evidence-blob-read endpoint** — evidence blobs
-  live in memory; "View File" is inert.
+- **The chain signer is a raw env key** — fine for testnet / a small mainnet
+  float; production wants KMS or a gas relayer (the `ChainOps` seam is the swap
+  point, documented).
+- **`getReceipt` scans `Anchored` logs `deployBlock`→`latest` in one call** —
+  fine at year-one volume on a dedicated contract; needs paging for a
+  years-old contract or a tight-`eth_getLogs` RPC.
 - **No real `SourceArchiver`** — `createFakeSourceArchiver` never touches the
   network. `THREAT_MODEL.md` names the SSRF guard the real one needs as the top
   item for that slice.
@@ -113,6 +185,8 @@ Still mock / unbuilt, deliberately or blocked, after Sprint 15:
 | 13 | Reader features: POST /readers + six saved-article/publisher-follow endpoints, batched read-time trustStatus | Complete with carryover | [SPRINT_13_REPORT.md](sprints/SPRINT_13_REPORT.md) |
 | 14 | Publisher-dashboard reads: 6 GET /publishers/{id}/* endpoints; activity_events + credibility_score_history now written | Complete with carryover | [SPRINT_14_REPORT.md](sprints/SPRINT_14_REPORT.md) |
 | 15 | Hardening (Phase 5): rate limiting, error-envelope for framework 4xx, N+1/EXPLAIN audit + 0008 indexes, RUNBOOK + THREAT_MODEL + PERFORMANCE docs | Complete with carryover | [SPRINT_15_REPORT.md](sprints/SPRINT_15_REPORT.md) |
+| 16 | Real chain AnchorProvider: `@sourceit/anchoring-contract` (Anchor.sol + artifact), viem-backed `createChainAnchorProvider` in the worker, env-selected; live testnet run pending | Complete with carryover | [SPRINT_16_REPORT.md](sprints/SPRINT_16_REPORT.md) |
+| 17 | Real ObjectStore: S3-compatible `s3ObjectStore.ts`, env-selected; new public `GET /versions/{id}/evidence/{evidenceId}/file` signed-URL redirect; "View File" wired | Complete with carryover | [SPRINT_17_REPORT.md](sprints/SPRINT_17_REPORT.md) |
 
 ## Current domain model
 
@@ -154,11 +228,12 @@ AnchorBatch (1) ──has──> (N) AnchorRecord
 
 ## Implemented endpoints
 
-`packages/shared/openapi.json` — **35 paths / 44 operations; all 44 implemented**,
+`packages/shared/openapi.json` — **36 paths / 45 operations; all 45 implemented**,
 verified against a real database. `GET /healthz` / `GET /readyz` also exist but
 are intentionally not in `openapi.json`. Full method/path/auth/sprint table: see
-Sprint 14's PROJECT_STATE (unchanged in Sprint 15). Rate limiting now applies to
-all of them (health checks exempt; mutating methods get the tighter budget).
+Sprint 14's PROJECT_STATE (unchanged since, plus Sprint 17's new file-redirect
+path). Rate limiting now applies to all of them (health checks exempt; mutating
+methods get the tighter budget).
 
 ## Decisions
 
@@ -234,6 +309,26 @@ Append-only. Load-bearing entries kept; sprint reports carry the rest.
   `0008` adds `saved_articles(account_id,id)` + `publisher_follows(account_id,id)`.
   Backups + restore documented in `RUNBOOK.md`, not executed. Confirmed with the
   user.
+- 2026-09-10 — Real chain AnchorProvider (Sprint 16): **Base Sepolia now,
+  mainnet = config**. A tiny in-repo Anchor contract
+  (`packages/anchoring-contract`, `mapping(bytes32=>bool)` guard +
+  `Anchored(bytes32 indexed root,…)` event) rather than EAS. **Raw signing key
+  in the worker env** (`ANCHOR_SIGNER_PRIVATE_KEY`, faucet-funded); KMS / gas
+  relayer is deferred production hardening at the `ChainOps` seam. The real
+  provider lives in **`apps/worker`** (viem dep) so `packages/anchoring` stays
+  zero-dependency; unit-tested against a contract-faithful in-memory model plus
+  one env-gated live test. `submit` idempotency = pre-check the `Anchored` log +
+  the contract's revert-on-repeat. Env-selected: `ANCHOR_RPC_URL` set → chain,
+  unset → fake. `FAKE_ANCHOR_CONFIRMATIONS` renamed `ANCHOR_CONFIRMATIONS`.
+  Confirmed with the user.
+- 2026-09-10 — Real ObjectStore (Sprint 17): **bucket stays private; a
+  dedicated `GET /versions/{id}/evidence/{evidenceId}/file` mints a fresh
+  presigned URL on every call and redirects**, over a public-read bucket with a
+  stable baked-in URL. `ObjectStore` gained `getSignedUrl(key)`; the fake
+  returns an inert `memory://unconfigured-object-store/<key>`. S3-compatible via
+  `@aws-sdk/client-s3` — any provider (S3, R2, B2, MinIO), not AWS-only. `put`
+  idempotent on the content-addressed key via a `HeadObject` check. Env-selected:
+  `OBJECT_STORE_BUCKET` set → real, unset → fake. Confirmed with the user.
 
 ## Open questions
 
@@ -241,15 +336,27 @@ Append-only. Load-bearing entries kept; sprint reports carry the rest.
 
 ## Known debt and deviations
 
-- **Docker is still never available in this environment**, across fifteen
-  sprints. `embedded-postgres` binaries are execution-blocked from
-  `%LOCALAPPDATA%\Temp` on this host; copied to a non-temp path (`D:\…`) they
-  run. Everything that mattered (all 9 migrations, seed, 237 workspace tests,
-  the EXPLAIN audit) was verified against a real PostgreSQL 16.14 driven from
-  `initdb` / `pg_ctl` on a non-temp path, torn down afterward. What's left:
-  confirm CI goes green on GitHub's runners, and confirm `docker compose up`.
-- **CI has never run.** Nothing pushed since Sprint 2. **Sprint 15 is awaiting
-  commit.**
+- **Docker is not available in this dev environment**, across sixteen sprints.
+  `embedded-postgres` binaries are execution-blocked from `%LOCALAPPDATA%\Temp`
+  on this host; copied to a non-temp path (`D:\…`) they run. Everything that
+  mattered was verified against a real PostgreSQL 16.14 driven from
+  `initdb` / `pg_ctl` on a non-temp path, torn down afterward. **CI on GitHub's
+  `ubuntu-latest` runs the full suite via Testcontainers and is green
+  (2026-09-10)** — the Testcontainers path is proven; only a local
+  `docker compose up` remains unrun.
+- **CI runs and is green.** `.github/workflows/ci.yml` fix (2026-09-10):
+  `pnpm/action-setup@v4` must not set `version:` when `package.json` has a
+  `packageManager` field — it errors on both; `checkout`/`setup-node` at `@v5`.
+- **No local EVM** (Foundry / anvil not available, same class as Docker) and no
+  funded testnet key — the Sprint 16 chain provider's **live path is unrun**.
+  `solc` compiled the contract; the provider logic is unit-tested against a
+  contract-faithful model; the live e2e test is env-gated.
+- **`viem` is a worker runtime dependency** now (~1 MB) — unavoidable for real
+  chain access; not pulled into `packages/anchoring` or `apps/api`.
+- **`packages/anchoring-contract/artifacts/Anchor.json` is committed** (keeps a
+  Solidity toolchain out of CI / the worker) — regenerate with
+  `pnpm --filter @sourceit/anchoring-contract build` after any contract edit;
+  `artifact.test.ts` fails if it is stale.
 - **`@fastify/rate-limit` does not limit under vitest's module runner** (works
   in real Node) — the rate-limit test is a spawned plain-Node subprocess
   (`test/fixtures/rate-limit-smoke.cjs`). Its config is inlined there *and* in
@@ -287,8 +394,14 @@ Append-only. Load-bearing entries kept; sprint reports carry the rest.
 - **`dispute:file`, `review:create`, `version:verify` share a switch `case`.**
 - **Dispute withdrawal is filer-only, even for an admin.**
 - **Evidence hashes are not anchored.**
-- **No real `ObjectStore` / evidence-blob-read endpoint / real `SourceArchiver`
-  / real `AnchorProvider` / admin re-queue for `anchor_failed`.**
+- **No real `SourceArchiver` / admin re-queue for `anchor_failed`.** (Real chain
+  `AnchorProvider` built Sprint 16 — live run pending a deploy. Real
+  `ObjectStore` built Sprint 17 — no bucket provisioned here.)
+- **`ObjectStore.get()` has no caller** — complete and unit-tested since Sprint 17,
+  but nothing in the product reads a stored blob server-side yet.
+- **No lifecycle/expiry policy on the evidence bucket** — deliberate (evidence
+  is meant to persist as long as its version), stated explicitly so nobody
+  attaches one by habit.
 - **`articles.repository.ts` cursor pagination keys on a millisecond-truncated
   `created_at`** (`listPublishedVersions`, `listForPublisher`).
 - **`apps/web` has no `tsconfig.json`** (Figma Make export); `vite build` is its
@@ -309,13 +422,15 @@ binaries blocked from `%TEMP%`; `apps/web` via `vite build`):
 
 ```
 pnpm install                                   # workspace install
-pnpm typecheck                                 # apps/api + apps/worker + packages/shared + packages/anchoring — 0 errors
-pnpm lint                                      # same four — 0 errors/warnings
+pnpm typecheck                                 # api + worker + shared + anchoring + anchoring-contract — 0 errors
+pnpm lint                                      # same five — 0 errors/warnings
 pnpm --filter @sourceit/shared db:migrate      # applies all 9 migrations (0000–0008) for real — verified
 pnpm --filter @sourceit/shared seed            # verified (2 articles, 2 saved, 2 follows, 1 redaction, 6 credibility points)
-pnpm --filter @sourceit/anchoring test         # 33/33 — verified
-TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 197/197 — verified (194 prior + 3 hardening)
-TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run                        # 7/7 — verified
+pnpm --filter @sourceit/anchoring test          # 33/33 — verified
+pnpm --filter @sourceit/anchoring-contract test # 3/3 — verified (artifact ↔ source guard)
+pnpm --filter @sourceit/anchoring-contract build # recompile Anchor.sol → artifacts/Anchor.json (solc-js)
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/api  exec vitest run --no-file-parallelism   # 208/208 — verified
+TEST_DATABASE_URL=<url> pnpm --filter @sourceit/worker exec vitest run --no-file-parallelism  # 15 pass + 1 skipped (live chain test, env-gated)
 pnpm --filter @sourceit/shared openapi:generate && pnpm --filter @sourceit/shared client:generate  # regenerated, not hand-edited
 pnpm dev                                        # runs apps/api + apps/worker in parallel; both need ../../.env
 pnpm --filter @sourceit/web dev                # needs apps/web/.env.local (VITE_CLERK_PUBLISHABLE_KEY, VITE_API_BASE_URL)
@@ -324,16 +439,27 @@ pnpm --filter @sourceit/web build              # 2204 modules — verified
 
 `.env` for `pnpm dev`: `DATABASE_URL`, `CLERK_SECRET_KEY`,
 `CLERK_PUBLISHABLE_KEY`, `CORS_ORIGIN`, and optionally `RATE_LIMIT_MAX` /
-`RATE_LIMIT_WRITE_MAX` / `RATE_LIMIT_WINDOW_MS` (api); the worker reads the same
-file and takes optional `ANCHOR_TICK_MS` / `ANCHOR_MAX_BATCH` /
-`ANCHOR_MAX_ATTEMPTS` / `FAKE_ANCHOR_CONFIRMATIONS`. `apps/api` also accepts
-injected `objectStore` / `sourceArchiver` in `buildApp`.
+`RATE_LIMIT_WRITE_MAX` / `RATE_LIMIT_WINDOW_MS` — and, to store evidence in a
+real bucket instead of the in-memory fake, `OBJECT_STORE_BUCKET` +
+`OBJECT_STORE_REGION` + `OBJECT_STORE_ACCESS_KEY_ID` +
+`OBJECT_STORE_SECRET_ACCESS_KEY` (+ optional `OBJECT_STORE_ENDPOINT` /
+`OBJECT_STORE_FORCE_PATH_STYLE` / `OBJECT_STORE_SIGNED_URL_TTL_SECONDS`, default
+900s) (api); the worker reads the same file and takes optional `ANCHOR_TICK_MS`
+/ `ANCHOR_MAX_BATCH` / `ANCHOR_MAX_ATTEMPTS` / `ANCHOR_CONFIRMATIONS`, and — to
+anchor on a real chain instead of the fake — `ANCHOR_RPC_URL` +
+`ANCHOR_CHAIN_ID` + `ANCHOR_CONTRACT_ADDRESS` + `ANCHOR_SIGNER_PRIVATE_KEY`
+(+ optional `ANCHOR_CONTRACT_DEPLOY_BLOCK`). `apps/api` also accepts injected
+`objectStore` / `sourceArchiver` in `buildApp`.
 
-Operational docs: `docs/RUNBOOK.md`, `docs/THREAT_MODEL.md`,
-`docs/PERFORMANCE.md`.
+Operational docs: `docs/RUNBOOK.md` (incl. "Chain anchoring" and "Object
+storage"), `docs/THREAT_MODEL.md`, `docs/PERFORMANCE.md`, `docs/ANCHORING.md`.
 
-Still not possible here: `docker compose up`, or Testcontainers (both need
-Docker). On Windows, prefer a Postgres install outside `%LOCALAPPDATA%\Temp` —
-binaries under the temp tree are execution-blocked on this host. A killed
-launcher can leave an orphaned `postgres.exe` on the test port — check with
-`Get-NetTCPConnection -LocalPort <port>`.
+Still not possible here: `docker compose up` / Testcontainers (need Docker); a
+local EVM (Foundry / anvil) or a funded testnet key, so the chain provider's
+live run is deferred to a deploy; no cloud account/credentials, so the object
+store's live HTTP round-trip to a real bucket is likewise deferred (its logic,
+including URL signing, is fully unit-tested without one). On Windows, prefer a
+Postgres install outside
+`%LOCALAPPDATA%\Temp` — binaries under the temp tree are execution-blocked on
+this host. A killed launcher can leave an orphaned `postgres.exe` on the test
+port — check with `Get-NetTCPConnection -LocalPort <port>`.

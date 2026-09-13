@@ -20,7 +20,16 @@ the process refuses to start if any is missing or malformed):
 `PORT` (default 3000), `RATE_LIMIT_MAX` / `RATE_LIMIT_WRITE_MAX` /
 `RATE_LIMIT_WINDOW_MS` (defaults 300 / 30 / 60000), and the worker's
 `ANCHOR_TICK_MS` / `ANCHOR_MAX_BATCH` / `ANCHOR_MAX_ATTEMPTS` /
-`FAKE_ANCHOR_CONFIRMATIONS`.
+`ANCHOR_CONFIRMATIONS`. The worker's chain-anchoring vars
+(`ANCHOR_RPC_URL` / `ANCHOR_CHAIN_ID` / `ANCHOR_CONTRACT_ADDRESS` /
+`ANCHOR_SIGNER_PRIVATE_KEY` / `ANCHOR_CONTRACT_DEPLOY_BLOCK`) are covered in
+**Chain anchoring** below — unset, the worker uses the in-memory fake provider.
+`api`'s object-storage vars (`OBJECT_STORE_BUCKET` / `OBJECT_STORE_REGION` /
+`OBJECT_STORE_ACCESS_KEY_ID` / `OBJECT_STORE_SECRET_ACCESS_KEY` /
+`OBJECT_STORE_ENDPOINT` / `OBJECT_STORE_FORCE_PATH_STYLE` /
+`OBJECT_STORE_SIGNED_URL_TTL_SECONDS`) are covered in **Object storage**
+below — unset, `api` uses the in-memory fake and evidence never survives a
+restart.
 
 ## Deploy
 
@@ -134,6 +143,101 @@ limited.
   `update anchor_records set status = 'pending' where anchor_batch_id =
   '<batch id>';` — then the worker retries on its next tick. Only do this once
   the underlying chain/provider problem is fixed.
+
+## Chain anchoring
+
+Unset `ANCHOR_RPC_URL` → the worker uses the in-memory fake provider (roots are
+"mined" instantly, nothing on-chain). This is fine for a staging environment
+where verification against a real chain isn't required. To anchor for real:
+
+**One-time setup**
+
+1. Pick the chain. Base Sepolia (`ANCHOR_CHAIN_ID=84532`,
+   `ANCHOR_RPC_URL=https://sepolia.base.org`) for a testnet; Base mainnet is
+   `8453` + a mainnet RPC. The provider is chain-agnostic EVM JSON-RPC — any L2
+   works with the right id + RPC.
+2. Create a **dedicated** signing key (not a personal wallet). Fund it: a faucet
+   for testnet; a small ETH float (a few dollars covers thousands of batch
+   txs on an L2) for mainnet.
+3. Deploy the Anchor contract:
+   ```
+   ANCHOR_RPC_URL=… ANCHOR_CHAIN_ID=… ANCHOR_SIGNER_PRIVATE_KEY=0x… \
+     pnpm --filter @sourceit/anchoring-contract deploy
+   ```
+   It prints `{ address, deployBlock, solcVersion, sourceSha256 }`.
+4. Set the worker env: `ANCHOR_RPC_URL`, `ANCHOR_CHAIN_ID`,
+   `ANCHOR_CONTRACT_ADDRESS` (the printed address), `ANCHOR_SIGNER_PRIVATE_KEY`,
+   and `ANCHOR_CONTRACT_DEPLOY_BLOCK` (the printed block — bounds the
+   `Anchored` log scan, important on mainnet). Redeploy the worker; its startup
+   log line reports `"provider":"chain"`.
+5. Sanity-check: publish a version, wait a couple of ticks, then
+   `GET /versions/{id}/anchor` — `chainTxHash` should be a real transaction you
+   can open on the chain's explorer, and `verifyInclusionProof` +
+   `chainTxHash`/`blockHeight` reproduce the anchored root.
+
+**Signer out of gas** — `provider.submit` throws, the batch's `attempts`
+climbs, and after `ANCHOR_MAX_ATTEMPTS` the batch is `anchor_failed` and its
+records show `anchor_failed` to readers (never a false "verified"). Recovery:
+top the signer up, then re-queue the failed batch with the SQL in **Anchoring
+worker stuck** above. Monitor the signer balance and alert well before zero.
+
+**Key rotation** — deploy nothing new; the contract accepts `anchor()` from any
+sender. Fund a new key, swap `ANCHOR_SIGNER_PRIVATE_KEY`, redeploy the worker.
+In-flight `submitted` batches resume fine — `getReceipt` is a log lookup, not
+tied to the sender.
+
+**Testnet → mainnet** — deploy a fresh contract on mainnet (step 3 with mainnet
+env), point the worker at it, and fund a mainnet key. Roots already anchored on
+testnet do **not** migrate; historical `anchor_records` keep their testnet
+`chain_tx_hash` / `block_height`. Plan the cutover for a low-traffic window and
+accept that pre-cutover versions are verifiable only against the testnet
+contract (record which contract covers which date range).
+
+**Production hardening (deferred)** — replace the raw env key with a KMS-backed
+signer or a gas relayer (Gelato / OpenZeppelin Defender / a Base paymaster) so
+no private key lives in the worker env. The `ChainOps` seam in
+`chainAnchorProvider.ts` is where that swaps in.
+
+## Object storage
+
+Unset `OBJECT_STORE_BUCKET` → `api` uses an in-memory fake: evidence uploads
+work, but nothing survives a restart and "View File" redirects to a
+non-functional `memory://` placeholder. Any S3-compatible provider works —
+Cloudflare R2 is the cheapest fit (no egress fees, S3 API); AWS S3, Backblaze
+B2, and MinIO are equally supported.
+
+**One-time setup**
+
+1. Create a **private** bucket (no public-read ACL — evidence is served only
+   through the signed-URL redirect endpoint, never a stable public link).
+2. Create an access key scoped to that bucket only (`GetObject` / `PutObject` /
+   `HeadObject`).
+3. Set `api`'s env: `OBJECT_STORE_BUCKET`, `OBJECT_STORE_REGION` (R2: `auto`),
+   `OBJECT_STORE_ACCESS_KEY_ID`, `OBJECT_STORE_SECRET_ACCESS_KEY`, and — for
+   anything but real AWS S3 — `OBJECT_STORE_ENDPOINT` (R2:
+   `https://<account id>.r2.cloudflarestorage.com`). MinIO and some
+   self-hosted servers also need `OBJECT_STORE_FORCE_PATH_STYLE=true`.
+   Redeploy `api`.
+4. Sanity-check: attach evidence to a draft version, then
+   `GET /versions/{id}/evidence/{evidenceId}/file` — it should `302` to a
+   `https://…X-Amz-Signature=…` URL that downloads the file. Restart `api` and
+   confirm the file is still there (proves it survived the fake's in-memory
+   lifetime).
+
+**No migration for existing data.** Nothing was ever persisted by the fake —
+there is nothing to move. All evidence attached after this is configured goes
+to the real bucket.
+
+**Signed-URL lifetime** — `OBJECT_STORE_SIGNED_URL_TTL_SECONDS` (default 900).
+A copied "View File" link stops working after this; the reader re-opens the
+verification page and clicks again for a fresh one. Lower it for tighter
+exposure, raise it if readers report the click-to-open flow taking a while.
+
+**Bucket size / cost** — evidence is content-addressed, so the same file
+attached to two versions (or re-attached) is stored once. There is no
+lifecycle/expiry policy configured — evidence is meant to persist as long as
+the version it's evidence for (append-only, per the build prompt); do not
+attach a bucket lifecycle rule that deletes objects.
 
 ## Backups and restore
 

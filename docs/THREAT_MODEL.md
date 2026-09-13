@@ -103,7 +103,7 @@ says.
 | Scrape a competitor's analytics / activity at volume | `requireActor` (any signed-in account) + rate limiting. These expose only aggregate counts and event titles, no PII; the underlying reviews/disputes were already public. |
 | Page-cursor tampering on `/reviews` | The cursor is `<createdAt>~<kind>~<id>`; a malformed cursor decodes to `null` and the endpoint returns the first page. A crafted cursor can only skip the caller's own view forward — it cannot reveal hidden rows (there are none). |
 
-## Evidence — `POST /versions/{id}/evidence`
+## Evidence — `POST /versions/{id}/evidence`, `GET .../evidence/{id}/file`
 
 | Attack | Stop |
 |---|---|
@@ -111,16 +111,23 @@ says.
 | Swap evidence after a version is submitted | Evidence attaches only while the version is a `draft`; once it leaves draft the set is frozen (409) and `evidence` rows are append-only. |
 | Oversized upload to exhaust memory / disk | `@fastify/multipart` `fileSize: 25 MB`, `files: 1`, `fields: 16`; an over-limit stream is rejected `413 PAYLOAD_TOO_LARGE`. |
 | `tag=source` pointing at an internal URL (SSRF) | **Open** — `createFakeSourceArchiver` does not touch the network, so there is no SSRF today; a real `SourceArchiver` must fetch only allow-listed schemes/hosts, block private / link-local / metadata IPs, cap size and redirects, and time out. This is the single most important item for the "real archiver" slice. |
+| Enumerate evidence ids to find files that aren't attached to a version they belong to | `GET .../evidence/{evidenceId}/file` checks `evidence.article_version_id === versionId` — an id that exists but belongs elsewhere 404s, same as an unknown id. |
+| Read a file whose version is still a private draft | The file endpoint 404s while the owning version is a draft, same as the listing. |
+| A leaked "View File" link keeps working forever | The presigned URL expires (`OBJECT_STORE_SIGNED_URL_TTL_SECONDS`, default 15 min); the bucket itself is private, so there is no stable public URL to leak in the first place — only a fresh, short-lived one per click. |
 
 ## Known residual risk
 
-- **No real `AnchorProvider`** — the chain root of trust is a fake. Until a real
-  provider ships, "anchored" means "the fake said so." The Merkle spec and proof
-  format are frozen and third-party-verifiable; only the chain submission is
-  stubbed.
-- **No real `ObjectStore`** — evidence blobs live in memory; there is no
-  blob-read endpoint, so "View File" is inert. No blob is actually served to
-  anyone yet.
+- **The chain signer is a raw env key** — fine for testnet / a small mainnet
+  float; a KMS-backed signer or gas relayer removes the key from the worker env
+  entirely (documented in the runbook, the `ChainOps` seam is the swap point).
+  The Merkle spec and proof format are frozen and third-party-verifiable
+  regardless of signer.
+- **The chain provider's live path is unverified here** — no deployed contract,
+  no funded testnet key in this environment. Unit-tested against a
+  contract-faithful model; run the live test once deployed.
+- **Object storage credentials are a static access key in `api`'s env** — scope
+  it to the one bucket, `GetObject`/`PutObject`/`HeadObject` only. A future
+  hardening pass could move to short-lived STS credentials.
 - **`clerk_org_id` is a placeholder** — publisher org membership is our
   `publisher_members` table, not Clerk-synced. A Clerk-org takeover is not a
   vector because we do not trust Clerk orgs for anything yet.
