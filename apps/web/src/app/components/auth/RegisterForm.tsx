@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
 import { useSignUp } from "@clerk/clerk-react";
 import { Button } from "../ui/button";
@@ -29,6 +30,7 @@ interface RegisterFormData {
 }
 
 export default function RegisterForm() {
+  const navigate = useNavigate();
   const { isLoaded, signUp, setActive } = useSignUp();
   const api = useApiClient();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
@@ -120,6 +122,18 @@ export default function RegisterForm() {
     }
     setIsLoading(false);
     resetForm();
+
+    switch (role) {
+      case "reader":
+        navigate("/user-portal");
+        break;
+      case "publisher":
+        navigate("/publisher-portal");
+        break;
+      case "reviewer":
+        navigate("/reviewer-portal");
+        break;
+    }
   }
 
   const onSubmit = async (data: RegisterFormData) => {
