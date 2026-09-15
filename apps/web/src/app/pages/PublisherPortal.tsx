@@ -11,6 +11,9 @@ import CredibilityPanel from "../components/publisher/CredibilityPanel";
 import ReviewsDisputes from "../components/publisher/ReviewsDisputes";
 import PublisherProfileCard from "../components/publisher/PublisherProfileCard";
 import { useApiClient } from "../lib/apiClient";
+import type { components } from "@sourceit/shared/client";
+
+type Publisher = components["schemas"]["Publisher"];
 
 export default function PublisherPortal() {
   const api = useApiClient();
@@ -19,6 +22,7 @@ export default function PublisherPortal() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [publisherId, setPublisherId] = useState<string | null>(null);
+  const [publisher, setPublisher] = useState<Publisher | null>(null);
   const [meError, setMeError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +38,13 @@ export default function PublisherPortal() {
       setPublisherId(data.publisherIds[0]);
     });
   }, [api]);
+
+  useEffect(() => {
+    if (!publisherId) return;
+    api.GET("/publishers/{publisherId}", { params: { path: { publisherId } } }).then(({ data }) => {
+      if (data) setPublisher(data);
+    });
+  }, [api, publisherId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/30 flex">
@@ -59,18 +70,22 @@ export default function PublisherPortal() {
             >
               <Menu className="w-6 h-6" />
             </Button>
-            <h1 className="text-lg font-bold text-slate-900">Daily Planet</h1>
+            <h1 className="text-lg font-bold text-slate-900">SourceIT</h1>
             <div className="w-10"></div>
           </div>
         </div>
         
         {/* Header */}
-        <PublisherHeader onPublishClick={() => setShowPublishForm(true)} />
+        <PublisherHeader
+          onPublishClick={() => setShowPublishForm(true)}
+          displayName={publisher?.displayName ?? null}
+          verificationStatus={publisher?.verificationStatus ?? null}
+        />
 
         {/* Dashboard Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Analytics Cards */}
-          <AnalyticsCards />
+          <AnalyticsCards publisherId={publisherId} />
 
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -101,19 +116,19 @@ export default function PublisherPortal() {
               <MyArticlesTable publisherId={publisherId} />
 
               {/* Recent Activity */}
-              <RecentActivity />
+              <RecentActivity publisherId={publisherId} />
             </div>
 
             {/* Right Column - Sidebar Content */}
             <div className="space-y-6">
               {/* Publisher Profile Card */}
-              <PublisherProfileCard />
+              <PublisherProfileCard publisherId={publisherId} />
 
               {/* Credibility Panel */}
-              <CredibilityPanel />
+              <CredibilityPanel publisherId={publisherId} />
 
               {/* Reviews & Disputes */}
-              <ReviewsDisputes />
+              <ReviewsDisputes publisherId={publisherId} />
             </div>
           </div>
         </main>

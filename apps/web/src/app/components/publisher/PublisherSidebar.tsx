@@ -85,7 +85,7 @@ export default function PublisherSidebar({
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Shield className="w-5 h-5 text-blue-600" />
                 </div>
-                <h1 className="text-xl font-bold text-slate-900">Daily Planet</h1>
+                <h1 className="text-xl font-bold text-slate-900">SourceIT</h1>
               </div>
             ) : (
               <div className="flex justify-center w-full">
