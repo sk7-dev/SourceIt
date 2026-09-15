@@ -1,13 +1,70 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
+import { useAuth, useClerk } from "@clerk/clerk-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import { Shield, CheckCircle2 } from "lucide-react";
 import LoginForm from "../components/auth/LoginForm";
 import RegisterForm from "../components/auth/RegisterForm";
 import { motion } from "motion/react";
+import { useApiClient } from "../lib/apiClient";
 
 export default function AuthPage() {
+  const navigate = useNavigate();
+  const api = useApiClient();
+  const { signOut } = useClerk();
+  const { isLoaded, isSignedIn } = useAuth();
   const [activeTab, setActiveTab] = useState("login");
+  // Only meaningful once isSignedIn is confirmed true and /me comes back with
+  // no matching account — an existing Clerk session that isn't a SourceIt
+  // account yet, so login/register would just fail with "session exists".
+  const [orphanSession, setOrphanSession] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    api.GET("/me").then(({ data }) => {
+      if (!data) {
+        setOrphanSession(true);
+        return;
+      }
+      switch (data.account.role) {
+        case "reader":
+          navigate("/user-portal");
+          break;
+        case "publisher":
+          navigate("/publisher-portal");
+          break;
+        case "reviewer":
+          navigate("/reviewer-portal");
+          break;
+        case "admin":
+          navigate("/user-portal");
+          break;
+      }
+    });
+  }, [isLoaded, isSignedIn, api, navigate]);
+
+  if (isLoaded && isSignedIn && orphanSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
+        <Card className="shadow-xl border-slate-200 max-w-md w-full">
+          <CardHeader>
+            <CardTitle>Already signed in</CardTitle>
+            <CardDescription>
+              This browser has an active session, but it isn't linked to a SourceIt account yet. Sign out to
+              register or log in with a different account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={() => void signOut(() => window.location.reload())}>
+              Sign out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
