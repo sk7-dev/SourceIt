@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router";
+import { useClerk } from "@clerk/clerk-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { 
@@ -46,6 +47,11 @@ export default function PublisherSidebar({
   onMobileToggle
 }: PublisherSidebarProps) {
   const navigate = useNavigate();
+  const { signOut } = useClerk();
+
+  const handleLogout = () => {
+    void signOut(() => navigate("/"));
+  };
 
   const handleNavigation = (section: string) => {
     setActiveSection(section);
@@ -150,7 +156,7 @@ export default function PublisherSidebar({
               "w-full text-slate-600 hover:text-red-600 hover:bg-red-50",
               isCollapsed ? "justify-center px-2" : "justify-start"
             )}
-            onClick={() => navigate("/")}
+            onClick={handleLogout}
             title={isCollapsed ? "Logout" : undefined}
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />

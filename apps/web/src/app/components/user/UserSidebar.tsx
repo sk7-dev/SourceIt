@@ -1,5 +1,6 @@
 import { Home, Search, Bookmark, Bell, Users, User, Settings, LogOut, ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useClerk } from "@clerk/clerk-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 
@@ -19,6 +20,11 @@ export default function UserSidebar({
   onMobileToggle 
 }: UserSidebarProps) {
   const navigate = useNavigate();
+  const { signOut } = useClerk();
+
+  const handleLogout = () => {
+    void signOut(() => navigate("/"));
+  };
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: Home, path: "/user-portal" },
@@ -125,7 +131,7 @@ export default function UserSidebar({
           {/* Logout */}
           <Button
             variant="ghost"
-            onClick={() => navigate("/")}
+            onClick={handleLogout}
             className={`w-full text-slate-600 hover:text-slate-900 hover:bg-slate-50 ${isCollapsed ? 'justify-center' : 'justify-start'}`}
             title={isCollapsed ? "Logout" : undefined}
           >
